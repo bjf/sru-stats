@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 #
 
+import sys
 from argparse                           import ArgumentParser, RawDescriptionHelpFormatter
 from lib.launchpad                      import Launchpad
-from bcore.std                          import pro
 import lib.colored
 from datetime                           import datetime
+
+def pro(*args, **kwargs):
+    print(*args, file=sys.stdout, **kwargs)
 
 def style(text, color):
     return lib.colored.stylize(text, color)
