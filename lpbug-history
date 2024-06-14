@@ -10,62 +10,46 @@ from datetime                           import datetime
 def pro(*args, **kwargs):
     print(*args, file=sys.stdout, **kwargs)
 
-def style(text, color):
-    return lib.colored.stylize(text, color)
-
-def fg(color):
-    return lib.colored.fg(color)
-
-def bg(color):
-    return lib.colored.bg(color)
-
-def attr(color):
-    return lib.colored.attr(color)
-
-def row_bg():
+def set_row_background():
     global row_is_odd
     if row_is_odd:
         row_is_odd = False
-        return bg('black')
+        return lib.colored.bg(clr_bg_odd_rows)
     else:
         row_is_odd = True
-        return bg('grey_11')
-        # return bg('grey_15')
-
-def magenta(text, bg=''):
-    return style(text, fg('magenta_1') + bg)
-
-def cyan(text, bg=''):
-    return style(text, fg('cyan') + bg)
+        # return lib.colored.bg('grey_11')
+        return lib.colored.bg(clr_bg_even_rows)
 
 def white(text, bg=''):
-    return style(text, fg('white') + bg)
-
-def green(text, bg=''):
-    return style(text, fg('green') + bg)
-
-def yellow(text, bg=''):
-    return style(text, fg('yellow_1') + bg)
-
-def grey(text, bg=''):
-    return style(text, fg('grey_0') + bg)
+    return lib.colored.stylize(text, lib.colored.fg(clr_default) + bg)
 
 def lino(text, bg=''):
-    return style(text, fg('dark_khaki') + bg)
-
-def sru(text, bg=''):
-    return style(text, fg('dark_orange') + bg)
+    return lib.colored.stylize(text, lib.colored.fg(clr_lino) + bg)
 
 def highlight(text, bg=''):
-    return style(text, fg('yellow_1') + bg)
+    return lib.colored.stylize(text, lib.colored.fg(clr_highlight) + bg)
 
-def anno_r(color, text):
-    global rbg
-    return color(f'{text:>32}', rbg)
+
+clr_duration     = 'green'
+clr_crank        = 'cyan'
+clr_build        = 'yellow_2'
+clr_sru          = 'light_coral'
+clr_lino         = 'dark_khaki'
+clr_testing      = 'cyan'
+clr_proposed     = 'sea_green_1a'
+clr_updates      = 'sea_green_1a'
+clr_signing      = 'light_goldenrod_3'
+clr_default      = 'white'
+clr_bt           = 'plum_2'
+clr_highlight    = 'yellow_1'
+clr_bg_odd_rows  = 'black'
+clr_bg_even_rows = 'grey_15'
+
+def anno_r(color_style, text):
+    return lib.colored.stylize(f'{text:>32}', lib.colored.fg(color_style) + rbg)
 
 def anno_d(text):
-    global rbg
-    return green(f'{text:<25}', rbg)
+    return lib.colored.stylize(f'{text:<32}', lib.colored.fg(clr_duration) + rbg)
 
 # date_to_string
 #
@@ -121,7 +105,7 @@ class LPBugHistory():
         for activity in history:
             if activity.whatchanged.endswith('status'):
                 lineno += 1
-                rbg = row_bg()
+                rbg = set_row_background()
 
                 task = activity.whatchanged.split(':', 1)[0]
                 if '/' in task:
@@ -134,12 +118,12 @@ class LPBugHistory():
                 timestamp = str(activity.datechanged).split('.', 1)[0]
                 prev_status = activity.oldvalue
                 new_status  = activity.newvalue
-                ln = f'{lineno:>3}'
-                o  = row_fg(f'{lino(ln)}', rbg)
+                ln = lino(f'{lineno:>3}')
+                o  = row_fg(ln, rbg)
                 o += row_fg(f'  {timestamp}', rbg)
                 o += row_fg(f'    {task:30}', rbg)
                 o += row_fg(f'    {prev_status:15}', rbg)
-                o += row_fg(f'    {new_status:15}', rbg)
+                o += row_fg(f'->  {new_status:15}', rbg)
 
                 if prev_timestamp is not None:
                     tick = self.duration(prev_timestamp, timestamp)
@@ -154,111 +138,123 @@ class LPBugHistory():
                 match f'{task}:{new_status}':
                     case 'prepare-package:In Progress':                               # crank started
                         crank_start = timestamp
-                        o += anno_r(cyan, 'crank started  ')
+                        o += anno_r(clr_crank, 'crank started  ')
                         o += anno_d(' ')
-                        o += anno_r(cyan, ' ')
-
-                    case 'prepare-package:Fix Committed':                             # buld started
-                        build_start = timestamp
-                        o += anno_r(yellow, 'build started  ')
-                        o += anno_d(' ')
-                        o += anno_r(cyan, ' ')
+                        o += anno_r(clr_default, ' ')
 
                     case 'prepare-package:Fix Released':                              # crank finished
                         duration = '(' + self.duration(crank_start, timestamp) + ')'
-                        o += anno_r(cyan, 'crank finished  ')
+                        o += anno_r(clr_crank, 'crank finished  ')
                         o += anno_d(duration)
-                        o += anno_r(cyan, ' ')
+                        o += anno_r(clr_default, ' ')
+
+                    case 'prepare-package:Fix Committed':                             # buld started
+                        build_start = timestamp
+                        o += anno_r(clr_build, 'build started  ')
+                        o += anno_d(' ')
+                        o += anno_r(clr_default, ' ')
 
                     case 'boot-testing:Triaged':                                      # build finished & boot testing started
                         boot_testing_start = timestamp
                         duration = '(' + self.duration(build_start, timestamp) + ')'
-                        o += anno_r(yellow, 'build finished  ')
+                        o += anno_r(clr_build, 'build finished  ')
                         o += anno_d(duration)
-                        o += anno_r(magenta, 'boot-testing started  ')
+                        o += anno_r(clr_bt, 'boot-testing started  ')
 
                     case 'boot-testing:Fix Released':                                 # boot testing finished
                         duration = '(' + self.duration(boot_testing_start, timestamp) + ')'
-                        o += anno_r(magenta, 'boot-testing finished  ')
+                        o += anno_r(clr_bt, 'boot-testing finished  ')
                         o += anno_d(duration)
-                        o += anno_r(cyan, ' ')
+                        o += anno_r(clr_default, ' ')
 
                     case 'promote-to-proposed:Fix Released':                          # -proposed
                         duration = '(' + self.duration(crank_start, timestamp) + ')'
-                        o += anno_r(cyan, '-proposed promotion finished  ')
+                        o += anno_r(clr_proposed, '-proposed promotion finished  ')
                         o += anno_d(duration)
-                        o += anno_r(cyan, ' ')
+                        o += anno_r(clr_default, ' ')
 
                     case 'promote-to-updates:Fix Released':                           # -updates
                         duration = '(' + self.duration(crank_start, timestamp) + ')'
-                        o += anno_r(magenta, '-updates promotion finished  ')
+                        o += anno_r(clr_updates, '-updates promotion finished  ')
                         o += anno_d(duration)
-                        o += anno_r(cyan, ' ')
+                        o += anno_r(clr_default, ' ')
 
                     case 'regression-testing:Incomplete':
                         regression_testing_start = timestamp
-                        o += anno_r(cyan, 'regression testing started  ')
+                        o += anno_r(clr_testing, 'regression testing started  ')
                         o += anno_d(' ')
-                        o += anno_r(cyan, ' ')
+                        o += anno_r(clr_default, ' ')
 
                     case 'regression-testing:Fix Released':
                         duration = '(' + self.duration(regression_testing_start, timestamp) + ')'
-                        o += anno_r(cyan, 'regression testing finished  ')
+                        o += anno_r(clr_testing, 'regression testing finished  ')
                         o += anno_d(duration)
-                        o += anno_r(cyan, ' ')
+                        o += anno_r(clr_default, ' ')
 
                     case 'certification-testing:Opinion':
                         certification_testing_start = timestamp
-                        o += anno_r(cyan, 'certification testing started  ')
+                        o += anno_r(clr_testing, 'certification testing started  ')
                         o += anno_d(' ')
-                        o += anno_r(cyan, ' ')
+                        o += anno_r(clr_default, ' ')
 
                     case 'certification-testing:Fix Released':
                         duration = '(' + self.duration(certification_testing_start, timestamp) + ')'
-                        o += anno_r(cyan, 'certification testing finished  ')
+                        o += anno_r(clr_testing, 'certification testing finished  ')
                         o += anno_d(duration)
-                        o += anno_r(cyan, ' ')
+                        o += anno_r(clr_default, ' ')
 
                     case 'automated-testing:Incomplete':
                         automated_testing_start = timestamp
-                        o += anno_r(cyan, 'automated testing started  ')
+                        o += anno_r(clr_testing, 'automated testing started  ')
                         o += anno_d(' ')
-                        o += anno_r(cyan, ' ')
+                        o += anno_r(clr_default, ' ')
 
                     case 'automated-testing:Fix Released':
                         duration = '(' + self.duration(automated_testing_start, timestamp) + ')'
-                        o += anno_r(cyan, 'automated testing finished  ')
+                        o += anno_r(clr_testing, 'automated testing finished  ')
                         o += anno_d(duration)
-                        o += anno_r(cyan, ' ')
+                        o += anno_r(clr_default, ' ')
 
                     case 'sru-review:Triaged':
                         sru_review_ready = timestamp
-                        o += anno_r(sru, 'sru review ready  ')
+                        o += anno_r(clr_sru, 'sru review ready  ')
                         o += anno_d(' ')
-                        o += anno_r(cyan, ' ')
+                        o += anno_r(clr_default, ' ')
 
                     case 'sru-review:Fix Released':
                         duration = '(' + self.duration(sru_review_ready, timestamp) + ')'
-                        o += anno_r(sru, 'sru review finished  ')
+                        o += anno_r(clr_sru, 'sru review finished  ')
                         o += anno_d(duration)
-                        o += anno_r(cyan, ' ')
+                        o += anno_r(clr_default, ' ')
 
                     case 'new-review:Triaged':
                         new_review_ready = timestamp
-                        o += anno_r(sru, 'new review ready  ')
+                        o += anno_r(clr_sru, 'new review ready  ')
                         o += anno_d(' ')
-                        o += anno_r(cyan, ' ')
+                        o += anno_r(clr_default, ' ')
 
                     case 'new-review:Fix Released':
                         duration = '(' + self.duration(new_review_ready, timestamp) + ')'
-                        o += anno_r(sru, 'new review finished  ')
+                        o += anno_r(clr_sru, 'new review finished  ')
                         o += anno_d(duration)
-                        o += anno_r(cyan, ' ')
+                        o += anno_r(clr_default, ' ')
+
+                    case 'signing-signoff:Confirmed':
+                        signing_start = timestamp
+                        o += anno_r(clr_signing, 'signing start  ')
+                        o += anno_d(' ')
+                        o += anno_r(clr_default, ' ')
+
+                    case 'signing-signoff:Fix Released':
+                        duration = '(' + self.duration(signing_start, timestamp) + ')'
+                        o += anno_r(clr_signing, 'signing finished  ')
+                        o += anno_d(duration)
+                        o += anno_r(clr_default, ' ')
 
                     case _:
-                        o += anno_r(cyan, ' ')
+                        o += anno_r(clr_default, ' ')
                         o += anno_d(' ')
-                        o += anno_r(cyan, ' ')
+                        o += anno_r(clr_default, ' ')
 
                 pro(o)
 
