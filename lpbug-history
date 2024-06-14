@@ -1,0 +1,308 @@
+#!/usr/bin/env python3
+#
+
+from argparse                           import ArgumentParser, RawDescriptionHelpFormatter
+from lib.launchpad                      import Launchpad
+from bcore.std                          import pro
+import lib.colored
+from datetime                           import datetime
+
+def style(text, color):
+    return lib.colored.stylize(text, color)
+
+def fg(color):
+    return lib.colored.fg(color)
+
+def bg(color):
+    return lib.colored.bg(color)
+
+def attr(color):
+    return lib.colored.attr(color)
+
+def row_bg():
+    global row_is_odd
+    if row_is_odd:
+        row_is_odd = False
+        return bg('black')
+    else:
+        row_is_odd = True
+        return bg('grey_11')
+        # return bg('grey_15')
+
+def magenta(text, bg=''):
+    return style(text, fg('magenta_1') + bg)
+
+def cyan(text, bg=''):
+    return style(text, fg('cyan') + bg)
+
+def white(text, bg=''):
+    return style(text, fg('white') + bg)
+
+def green(text, bg=''):
+    return style(text, fg('green') + bg)
+
+def yellow(text, bg=''):
+    return style(text, fg('yellow_1') + bg)
+
+def grey(text, bg=''):
+    return style(text, fg('grey_0') + bg)
+
+def lino(text, bg=''):
+    return style(text, fg('dark_khaki') + bg)
+
+def sru(text, bg=''):
+    return style(text, fg('dark_orange') + bg)
+
+def highlight(text, bg=''):
+    return style(text, fg('yellow_1') + bg)
+
+def anno_r(color, text):
+    global rbg
+    return color(f'{text:>32}', rbg)
+
+def anno_d(text):
+    global rbg
+    return green(f'{text:<25}', rbg)
+
+# date_to_string
+#
+def date_to_string(date):
+    return "None" if date is None else str(date).split('.', 1)[0]
+
+
+global rbg
+rbg = ''
+row_is_odd = True
+
+
+# BugInfo
+#
+class BugInfo():
+    # __init__
+    #
+    def __init__(self, args):
+        '''
+        '''
+        self.args = args
+        self.defaults = {}
+
+    # initialize
+    #
+    def initialize(self):
+        self.lp = Launchpad('kernel-team-bug-info').service
+
+    def duration(self, before, after):
+        delta = datetime.strptime(after, '%Y-%m-%d %H:%M:%S') - datetime.strptime(before, '%Y-%m-%d %H:%M:%S')
+        return str(delta)
+
+    # __verbose_bug_info
+    #
+    def __print_bug_info(self, bug):
+        pro("")
+        pro("    %s: %s" % (bug.id, bug.title))
+        pro("")
+
+        pro("                 Owner: %s" % ("None" if bug.owner is None else bug.owner.display_name))
+
+        pro("               Created: %s" % (date_to_string(bug.date_created)))
+        pro("          Last Message: %s" % (date_to_string(bug.date_last_message)))
+        pro("          Last Updated: %s" % (date_to_string(bug.date_last_updated)))
+        pro("             Duplicate: %s" % bug.duplicate_of)
+        pro('')
+
+        global rbg
+        global row_fg
+        history = bug.activity
+        prev_timestamp = None
+        lineno = 0
+        for activity in history:
+            if activity.whatchanged.endswith('status'):
+                lineno += 1
+                rbg = row_bg()
+
+                task = activity.whatchanged.split(':', 1)[0]
+                if '/' in task:
+                    task = task.split('/')[1]
+                if args.highlight is not None and task in args.highlight:
+                    row_fg = highlight
+                else:
+                    row_fg = white
+
+                timestamp = str(activity.datechanged).split('.', 1)[0]
+                prev_status = activity.oldvalue
+                new_status  = activity.newvalue
+                ln = f'{lineno:>3}'
+                o  = row_fg(f'{lino(ln)}', rbg)
+                o += row_fg(f'  {timestamp}', rbg)
+                o += row_fg(f'    {task:30}', rbg)
+                o += row_fg(f'    {prev_status:15}', rbg)
+                o += row_fg(f'    {new_status:15}', rbg)
+
+                if prev_timestamp is not None:
+                    tick = self.duration(prev_timestamp, timestamp)
+                    o += row_fg(f'    {tick:>16}', rbg)
+                else:
+                    o += row_fg('    ', rbg)
+                prev_timestamp = timestamp
+                o += row_fg('    ', rbg)
+
+                # Add annotations to some lines
+                #
+                match f'{task}:{new_status}':
+                    case 'prepare-package:In Progress':                               # crank started
+                        crank_start = timestamp
+                        o += anno_r(cyan, 'crank started  ')
+                        o += anno_d(' ')
+                        o += anno_r(cyan, ' ')
+
+                    case 'prepare-package:Fix Committed':                             # buld started
+                        build_start = timestamp
+                        o += anno_r(yellow, 'build started  ')
+                        o += anno_d(' ')
+                        o += anno_r(cyan, ' ')
+
+                    case 'prepare-package:Fix Released':                              # crank finished
+                        duration = '(' + self.duration(crank_start, timestamp) + ')'
+                        o += anno_r(cyan, 'crank finished  ')
+                        o += anno_d(duration)
+                        o += anno_r(cyan, ' ')
+
+                    case 'boot-testing:Triaged':                                      # build finished & boot testing started
+                        boot_testing_start = timestamp
+                        duration = '(' + self.duration(build_start, timestamp) + ')'
+                        o += anno_r(yellow, 'build finished  ')
+                        o += anno_d(duration)
+                        o += anno_r(magenta, 'boot-testing started  ')
+
+                    case 'boot-testing:Fix Released':                                 # boot testing finished
+                        duration = '(' + self.duration(boot_testing_start, timestamp) + ')'
+                        o += anno_r(magenta, 'boot-testing finished  ')
+                        o += anno_d(duration)
+                        o += anno_r(cyan, ' ')
+
+                    case 'promote-to-proposed:Fix Released':                          # -proposed
+                        duration = '(' + self.duration(crank_start, timestamp) + ')'
+                        o += anno_r(cyan, '-proposed promotion finished  ')
+                        o += anno_d(duration)
+                        o += anno_r(cyan, ' ')
+
+                    case 'promote-to-updates:Fix Released':                           # -updates
+                        duration = '(' + self.duration(crank_start, timestamp) + ')'
+                        o += anno_r(magenta, '-updates promotion finished  ')
+                        o += anno_d(duration)
+                        o += anno_r(cyan, ' ')
+
+                    case 'regression-testing:Incomplete':
+                        regression_testing_start = timestamp
+                        o += anno_r(cyan, 'regression testing started  ')
+                        o += anno_d(' ')
+                        o += anno_r(cyan, ' ')
+
+                    case 'regression-testing:Fix Released':
+                        duration = '(' + self.duration(regression_testing_start, timestamp) + ')'
+                        o += anno_r(cyan, 'regression testing finished  ')
+                        o += anno_d(duration)
+                        o += anno_r(cyan, ' ')
+
+                    case 'certification-testing:Opinion':
+                        certification_testing_start = timestamp
+                        o += anno_r(cyan, 'certification testing started  ')
+                        o += anno_d(' ')
+                        o += anno_r(cyan, ' ')
+
+                    case 'certification-testing:Fix Released':
+                        duration = '(' + self.duration(certification_testing_start, timestamp) + ')'
+                        o += anno_r(cyan, 'certification testing finished  ')
+                        o += anno_d(duration)
+                        o += anno_r(cyan, ' ')
+
+                    case 'automated-testing:Incomplete':
+                        automated_testing_start = timestamp
+                        o += anno_r(cyan, 'automated testing started  ')
+                        o += anno_d(' ')
+                        o += anno_r(cyan, ' ')
+
+                    case 'automated-testing:Fix Released':
+                        duration = '(' + self.duration(automated_testing_start, timestamp) + ')'
+                        o += anno_r(cyan, 'automated testing finished  ')
+                        o += anno_d(duration)
+                        o += anno_r(cyan, ' ')
+
+                    case 'sru-review:Triaged':
+                        sru_review_ready = timestamp
+                        o += anno_r(sru, 'sru review ready  ')
+                        o += anno_d(' ')
+                        o += anno_r(cyan, ' ')
+
+                    case 'sru-review:Fix Released':
+                        duration = '(' + self.duration(sru_review_ready, timestamp) + ')'
+                        o += anno_r(sru, 'sru review finished  ')
+                        o += anno_d(duration)
+                        o += anno_r(cyan, ' ')
+
+                    case 'new-review:Triaged':
+                        new_review_ready = timestamp
+                        o += anno_r(sru, 'new review ready  ')
+                        o += anno_d(' ')
+                        o += anno_r(cyan, ' ')
+
+                    case 'new-review:Fix Released':
+                        duration = '(' + self.duration(new_review_ready, timestamp) + ')'
+                        o += anno_r(sru, 'new review finished  ')
+                        o += anno_d(duration)
+                        o += anno_r(cyan, ' ')
+
+                    case _:
+                        o += anno_r(cyan, ' ')
+                        o += anno_d(' ')
+                        o += anno_r(cyan, ' ')
+
+                pro(o)
+
+    # main
+    #
+    def main(self):
+        try:
+            self.initialize()
+
+            # Go through all the bug-ids that the user specified on the command line.
+            #
+            for id in self.args.bugs:
+
+                # Get an instance of a bug object based on a bug-id. If the bug
+                # id does not exist or if it is not visibile to you with the LP
+                # credentials you are using, an exception will be thrown.
+                #
+                self.__print_bug_info(self.lp.bugs[id])
+
+        # Handle the user presses <ctrl-C>.
+        #
+        except KeyboardInterrupt:
+            pass
+
+        return
+
+
+if __name__ == '__main__':
+    # Command line argument setup and initial processing
+    #
+    app_description = '''
+A utility that dumps out a bunch of information from launchpad about a specific bug.
+    '''
+    app_epilog = '''
+examples:
+    ./lpbug-info 2065886
+    '''
+    parser = ArgumentParser(description=app_description, epilog=app_epilog, formatter_class=RawDescriptionHelpFormatter)
+    parser.add_argument('bugs',  metavar='BUGS', nargs="*",                  default=None, help='A list of Launchpad bug ids that are to be processed.')
+    parser.add_argument('--highlight', nargs='?', help='tasks')
+    args = parser.parse_args()
+
+    if args.highlight is not None:
+        args.highlight = args.highlight.split(',')
+
+    app = BugInfo(args)
+    exit(app.main())
+
+
+# vi:set ts=4 sw=4 expandtab:
