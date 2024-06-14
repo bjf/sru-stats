@@ -75,9 +75,9 @@ rbg = ''
 row_is_odd = True
 
 
-# BugInfo
+# LPBugHistory
 #
-class BugInfo():
+class LPBugHistory():
     # __init__
     #
     def __init__(self, args):
@@ -89,7 +89,7 @@ class BugInfo():
     # initialize
     #
     def initialize(self):
-        self.lp = Launchpad('kernel-team-bug-info').service
+        self.lp = Launchpad('lpbug-history').service
 
     def duration(self, before, after):
         delta = datetime.strptime(after, '%Y-%m-%d %H:%M:%S') - datetime.strptime(before, '%Y-%m-%d %H:%M:%S')
@@ -301,7 +301,7 @@ examples:
     if args.highlight is not None:
         args.highlight = args.highlight.split(',')
 
-    app = BugInfo(args)
+    app = LPBugHistory(args)
     exit(app.main())
 
 
