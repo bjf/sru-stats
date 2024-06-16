@@ -286,15 +286,18 @@ if __name__ == '__main__':
     # Command line argument setup and initial processing
     #
     app_description = '''
-A utility that dumps out a bunch of information from launchpad about a specific bug.
+The kernel tracking bug is specified on the command line. The bug's history is pulled from LP and listed along with annotations
+about the beginning and end of different stages in the process and how long that state took to finish.
     '''
     app_epilog = '''
 examples:
-    ./lpbug-info 2065886
+    ./lpbug-history 2065886
     '''
+    bugs_help = 'A list of the Launchpad bug ids that are to to have their history displayed and analyzed.'
+    highlight_help = 'A comma separaged list of the bug tasks that should be highlighted in yellow.'
     parser = ArgumentParser(description=app_description, epilog=app_epilog, formatter_class=RawDescriptionHelpFormatter)
-    parser.add_argument('bugs',  metavar='BUGS', nargs="*",                  default=None, help='A list of Launchpad bug ids that are to be processed.')
-    parser.add_argument('--highlight', nargs='?', help='tasks')
+    parser.add_argument('bugs',  metavar='BUGS', nargs="*",                  default=None, help=bugs_help)
+    parser.add_argument('--highlight', nargs='?', help=highlight_help)
     args = parser.parse_args()
 
     if args.highlight is not None:
