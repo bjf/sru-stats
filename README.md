@@ -4,6 +4,6 @@ This project refers to the Ubuntu Kernel SRU Cycle. The idea behind the tools in
 
 ## Tools
 lpbug-history
-<div style="margin-left; 40px;">
+<div style="margin-left: 40px;">
 The kernel tracking bug is specified on the command line. The bug's history is pulled from LP and listed along with annotations about the beginning and end of different stages in the process and how long that state took to finish.
 </div>
