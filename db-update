@@ -1,0 +1,348 @@
+#!/usr/bin/env python3
+#
+
+import sys
+from argparse                           import ArgumentParser, RawTextHelpFormatter
+from lib.lpbug                          import LaunchpadBugz
+from lib.bugzdb                         import BugzDB
+from lib.bug                            import Bug, SRUCycleStats, BugHelper
+from datetime                           import datetime, timedelta
+from urllib.request                     import urlopen
+import yaml
+from bcore.std                          import pro
+
+def search_callback_ex(lpbug, lp=None):
+    try:
+        bug = Bug().load_from_lp(lpbug.id, lp)
+
+        if bug.variant == 'snap-debs':
+            return # I don't care about snaps
+        bug.store()
+        try:
+            o   = 'lp: #'
+            o  += f'{bug.id:<7d}'
+            o  += f'    {bug.title.replace("-proposed tracker", ""):75s}'
+            o  += f'    {bug.owner:<15s}'
+            o  += f'    {bug.series:<10s}'
+            o  += f'    {bug.package:<30s}'
+            o  += f'    {bug.cycle:>11s}'
+            o  += f'    {bug.spin}'
+            pro(o)
+        except TypeError:
+            print('Exception raised while working on lp: #{}'.format(lpbug.id))
+        update_stats(bug.cycle, bug.series, bug)
+    except:
+        print('Exception raised while working on lp: #{}'.format(lpbug.id))
+        raise
+
+def update_stats(sru_cycle, series, bug):
+    cs = SRUCycleStats()
+    cs.series = series
+    cs.id = bug.id
+    cs.package = bug.package
+    cs.cycle = sru_cycle
+    cs.variant = bug.variant
+    tasks = bug.tasks
+    try:
+        cs.total                 = delta(tasks['promote-to-updates'   ].date_fix_released,  tasks['prepare-package'      ].date_in_progress  )
+    except KeyError: pass
+    try:
+        cs.ready                 = delta(tasks['prepare-package'      ].date_confirmed,     tasks['prepare-package'      ].date_created      )
+    except KeyError: pass
+    try:
+        cs.waiting               = delta(tasks['prepare-package'      ].date_in_progress,   tasks['prepare-package'      ].date_confirmed    )
+    except KeyError: pass
+    try:
+        cs.crank                 = delta(tasks['prepare-package'      ].date_fix_committed, tasks['prepare-package'      ].date_in_progress  )
+    except KeyError: pass
+    try:
+        cs.build                 = delta(tasks['promote-to-proposed'  ].date_confirmed,     tasks['prepare-package'      ].date_fix_committed)
+    except KeyError: pass
+    try:
+        cs.review_start          = delta(tasks['promote-to-proposed'  ].date_in_progress,   tasks['promote-to-proposed'  ].date_confirmed    )
+    except KeyError: pass
+    try:
+        cs.review                = delta(tasks['promote-to-proposed'  ].date_fix_committed, tasks['promote-to-proposed'  ].date_in_progress  )
+    except KeyError: pass
+    try:
+        cs.regression_testing    = delta(tasks['regression-testing'   ].date_fix_released,  tasks['regression-testing'   ].date_confirmed    )
+    except KeyError: pass
+    try:
+        cs.certification_testing = delta(tasks['certification-testing'].date_fix_released,  tasks['certification-testing'].date_confirmed    )
+    except KeyError: pass
+    try:
+        cs.verification_testing  = delta(tasks['verification-testing' ].date_fix_released,  tasks['verification-testing' ].date_confirmed    )
+    except KeyError: pass
+
+    cs.store()
+
+def delta(a, b):
+    if a == 0 or b == 0:
+        result = 0
+    else:
+        result = a - b
+    return result
+
+# SubparserHelper
+#
+class SubparserHelper():
+    '''
+    A helper base class that encourages & facilitates encapsulating subparsers in separate classes.
+    '''
+    def execute(self):
+        self.args.func(self)
+
+# ------------------------------------------------------------------------------------------------
+class CycleStats(SubparserHelper):
+    def __init__(self, args):
+        self.args = args
+
+    @classmethod
+    def register_subparser(cls, subparser):
+        help_sru_cycle_stats = '''Process the existing database bugs and extract a number of stats about
+the SRU cycles and save those stats in the database.
+
+Examples:
+    db-update sru-cycle-stats
+    '''
+        sub = subparser.add_parser('sru-cycle-stats', help=help_sru_cycle_stats)
+        sub.set_defaults(klass=CycleTag, func=CycleStats.load_bugs)
+
+    def load_bugs(self):
+        for sru_cycle in BugHelper().stable_cycles():
+            for series in BugHelper().series_in_cycle(sru_cycle):
+                for bug in BugHelper().bugs_in_cycle_and_series(sru_cycle, series):
+                    update_stats(sru_cycle, series, bug)
+
+# ------------------------------------------------------------------------------------------------
+class CycleTag(SubparserHelper):
+    def __init__(self, args):
+        self.args = args
+
+    @classmethod
+    def register_subparser(cls, subparser):
+        help_cycle_tag = '''Update the database using a specific SRU Cycle tag
+
+Examples:
+    db-update cycle-tag 2019.12.02
+    '''
+        help_tag = 'The date component of a kernel sru tag.'
+
+        sub = subparser.add_parser('cycle-tag', help=help_cycle_tag)
+        sub.set_defaults(klass=CycleTag, func=CycleTag.load_bugs)
+        sub.add_argument('tag', nargs='?', help=help_tag)
+
+    def load_bugs(self):
+        lp = LaunchpadBugz()
+        lp_project = lp.launchpad.projects['kernel-sru-workflow']
+        search_status = [
+            "New",
+            "Incomplete (with response)",
+            "Incomplete (without response)",
+            "Confirmed",
+            "Triaged",
+            "In Progress",
+            "Fix Committed",
+            "Invalid",
+            "Incomplete",
+            "Fix Released",
+        ] # A list of the bug statuses that we care about
+
+        search_tags = [
+            f'kernel-sru-cycle-{self.args.tag}-1',
+            f'kernel-sru-cycle-{self.args.tag}-2',
+            f'kernel-sru-cycle-{self.args.tag}-3',
+            f'kernel-sru-cycle-{self.args.tag}-4',
+            f'kernel-sru-cycle-{self.args.tag}-5',
+            f'kernel-sru-cycle-{self.args.tag}-6',
+            f'kernel-sru-cycle-{self.args.tag}-7',
+            f'kernel-sru-cycle-{self.args.tag}-8',
+            f'kernel-sru-cycle-{self.args.tag}-9',
+            f'kernel-sru-cycle-{self.args.tag}-10',
+            f'kernel-sru-cycle-{self.args.tag}-11',
+            f'kernel-sru-cycle-{self.args.tag}-12',
+            f'kernel-sru-cycle-{self.args.tag}-13',
+            f'kernel-sru-cycle-{self.args.tag}-14',
+            f'kernel-sru-cycle-{self.args.tag}-15',
+            f'kernel-sru-cycle-{self.args.tag}-16',
+            f'kernel-sru-cycle-{self.args.tag}-17',
+            f'kernel-sru-cycle-{self.args.tag}-18',
+            f'kernel-sru-cycle-{self.args.tag}-19',
+            f'kernel-sru-cycle-{self.args.tag}-20',
+        ]
+        search_tags_combinator = "Any"
+
+        found_tasks = lp_project.searchTasks(status=search_status, tags=search_tags, tags_combinator=search_tags_combinator, omit_duplicates=False)
+
+        for task in found_tasks:
+            lp.fetch(task.bug.id, search_callback_ex)
+
+
+# ------------------------------------------------------------------------------------------------
+class SwmStatus(SubparserHelper):
+    def __init__(self, args):
+        self.args = args
+
+    @classmethod
+    def register_subparser(cls, subparser):
+        help_swm_status = '''Update the database using the SWM status json file.
+
+Examples:
+    db-update swm-status
+    '''
+
+        sub = subparser.add_parser('swm-status', help=help_swm_status)
+        sub.set_defaults(klass=SwmStatus, func=SwmStatus.load_bugs)
+
+    def load_bugs(self):
+        lp = LaunchpadBugz()
+        _url = 'https://kernel.ubuntu.com/~kernel-ppa/status/swm/status.yaml'
+        response = urlopen(_url)
+        data = response.read()
+        if not isinstance(data, str):
+            data = data.decode('utf-8')
+
+        _data = yaml.safe_load(data)
+        for bid in _data:
+            lp.fetch(bid, search_callback_ex)
+
+# ------------------------------------------------------------------------------------------------
+class LPBugsLatest(SubparserHelper):
+    def __init__(self, args):
+        self.args = args
+
+    @classmethod
+    def register_subparser(cls, subparser):
+        help_lpbugs_latest = '''Update the database searching for all tracking bugs that have been modified in the last N dayes.
+
+Examples:
+    db-update lpbugs-latest [<days>]
+    '''
+        help_days = '''The number of days from today that we will be looking for any modified tracking days.'''
+
+        sub = subparser.add_parser('lpbugs-latest', help=help_lpbugs_latest)
+        sub.set_defaults(klass=LPBugsLatest, func=LPBugsLatest.load_bugs)
+        sub.add_argument('days', nargs='?', default=2, type=int, help=help_days)
+
+    def load_bugs(self):
+        lp = LaunchpadBugz()
+        lp_project = lp.launchpad.projects['kernel-sru-workflow']
+        search_status = [
+            "New",
+            "Incomplete (with response)",
+            "Incomplete (without response)",
+            "Confirmed",
+            "Triaged",
+            "In Progress",
+            "Fix Committed",
+            "Invalid",
+            "Incomplete",
+            "Fix Released",
+        ] # A list of the bug statuses that we care about
+
+        # The tracking bugs that we are interested in should have been created recently (days).
+        #
+        search_since = datetime.utcnow() - timedelta(days=self.args.days)
+        found_tasks = lp_project.searchTasks(status=search_status, modified_since=search_since, omit_duplicates=False)
+
+        for task in found_tasks:
+            lp.fetch(task.bug.id, search_callback_ex)
+
+
+# ------------------------------------------------------------------------------------------------
+class InitSchema(SubparserHelper):
+    def __init__(self, args):
+        self.args = args
+
+    @classmethod
+    def register_subparser(cls, subparser):
+        help_lpbugs = '''Initialize the database tables
+
+Examples:
+    db-update init-schema
+    '''
+        sub = subparser.add_parser('init-schema', help=help_lpbugs)
+        sub.set_defaults(klass=LPBugs, func=InitSchema.init_schema)
+
+    def init_schema(self):
+        BugzDB().init_schema()
+
+# ------------------------------------------------------------------------------------------------
+class LPBugs(SubparserHelper):
+    def __init__(self, args):
+        self.args = args
+
+    @classmethod
+    def register_subparser(cls, subparser):
+        help_lpbugs = '''Update the database using the one or more LP bugs specified on the command line
+
+Examples:
+    db-update lpbugs <bugid>
+    '''
+        help_bugid = '''One or more LP bug ids to process and add their information to the databsae'''
+
+        sub = subparser.add_parser('lpbugs', help=help_lpbugs)
+        sub.set_defaults(klass=LPBugs, func=LPBugs.load_bugs)
+        sub.add_argument('bugids', nargs='*', help=help_bugid)
+
+    def load_bugs(self):
+        lp = LaunchpadBugz()
+        for bid in self.args.bugids:
+            lp.fetch(bid, search_callback_ex)
+
+# ------------------------------------------------------------------------------------------------
+class DBBugs(SubparserHelper):
+    def __init__(self, args):
+        self.args = args
+
+    @classmethod
+    def register_subparser(cls, subparser):
+        help_lpbugs = '''Using the list of all bugs currently in thd database. Each one is processed for
+updates. This is most often used if we modify the database schema if one more new fields are added.
+
+Examples:
+    db-update dbbugs
+    '''
+        sub = subparser.add_parser('dbbugs', help=help_lpbugs)
+        sub.set_defaults(klass=DBBugs, func=DBBugs.load_bugs)
+
+    def load_bugs(self):
+        bugs = []
+        db = BugzDB()
+        q = 'select * from bugs'
+        recs = db.fetch_all(q)
+        for bug in recs:
+            bugs.append(bug['id'])
+
+        lp = LaunchpadBugz()
+        for bid in bugs:
+            lp.fetch(bid, search_callback_ex)
+
+
+if __name__ == '__main__':
+    # Command line argument setup and initial processing
+    #
+    app_description = '''A utility for doing things with/to the kernel sru cycle database.
+    '''
+    app_epilog = '''
+    '''
+
+    parser = ArgumentParser(description=app_description, epilog=app_epilog, formatter_class=RawTextHelpFormatter)
+    subs = parser.add_subparsers()
+
+    LPBugs.register_subparser(subs)
+    LPBugsLatest.register_subparser(subs)
+    SwmStatus.register_subparser(subs)
+    CycleTag.register_subparser(subs)
+    DBBugs.register_subparser(subs)
+    CycleStats.register_subparser(subs)
+    InitSchema.register_subparser(subs)
+
+    cmd_args = parser.parse_args()
+    try:
+        helper = cmd_args.klass(cmd_args)
+        sys.exit(helper.execute())
+    except KeyboardInterrupt:
+        pass
+
+# vi:set ts=4 sw=4 expandtab:
