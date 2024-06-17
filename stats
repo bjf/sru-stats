@@ -1,0 +1,478 @@
+#!/usr/bin/env python3
+#
+
+import sys
+from argparse                           import ArgumentParser, RawDescriptionHelpFormatter
+from datetime                           import datetime, timezone, timedelta
+from lib.bugzdb                         import BugzDB
+from lib.bug                            import Bug, BugHelper
+import lib.colored
+from bcore.std                          import CS
+
+clr_duration     = 'green'
+clr_crank        = 'cyan'
+clr_build        = 'yellow_2'
+clr_sru          = 'light_coral'
+clr_lino         = 'dark_khaki'
+clr_testing      = 'cyan'
+clr_proposed     = 'sea_green_1a'
+clr_updates      = 'sea_green_1a'
+clr_signing      = 'light_goldenrod_3'
+clr_default      = 'white'
+clr_bt           = 'plum_2'
+clr_highlight    = 'yellow_1'
+
+clr_title             = lib.colored.fg('yellow_1')
+clr_delta             = lib.colored.fg('cyan')
+clr_exceeds_threshold = lib.colored.fg('magenta_1') + lib.colored.attr('bold')
+clr_default       = lib.colored.fg('white')
+clr_series        = lib.colored.fg('green') + lib.colored.attr('bold')
+clr_package       = lib.colored.fg('yellow_1')
+clr_bg_odd_rows  = lib.colored.bg('black')
+clr_bg_even_rows = lib.colored.bg('grey_15')
+clr_skew          = lib.colored.fg('wheat_1')
+
+th_total        = 1900840  # Approx. 22 days
+th_ready        = 86400    # Approx. 1 day
+th_waiting      = 43200    # Approx. .5 day
+th_crank        = 7200     # Approx. 2 hrs.
+th_build        = 21600    # Approx. 6 hrs.
+th_proposed     = 43200    # Approx. 6 hrs.
+th_review_start = 43200    # Approx. .5 day
+the_review       = 43200    # Approx. .5 day
+th_release      = 86400    # Approx. 1 day
+
+def pro(*args, **kwargs):
+    print(*args, file=sys.stdout, **kwargs)
+
+def style(text, color):
+    return lib.colored.stylize(text, color)
+
+
+epoch = datetime(2009, 3, 2, 0, 0, tzinfo=timezone.utc)
+
+class BadDelta(Exception):
+    def __init__(self, left, right):
+        self.left = left
+        self.right = right
+
+def date_of_timestamp(ts):
+    date = epoch + timedelta(seconds=ts)
+    return date
+
+def duration(end_time, start_time):
+    if end_time == 0 or start_time == 0:
+        pretty_time = '-'
+        total_seconds = 0
+    else:
+        delta = date_of_timestamp(end_time) - date_of_timestamp(start_time)
+        pretty_time = ptd(int(delta.total_seconds()))
+        total_seconds = delta.total_seconds()
+    return pretty_time, total_seconds
+
+# ptd
+#   Print Time Delta - pretty print the delta interval (integer).
+#
+def ptd(seconds):
+    sign_string = '-' if seconds < 0 else ''
+    seconds = abs(int(seconds))
+    days, seconds = divmod(seconds, 86400)
+    hours, seconds = divmod(seconds, 3600)
+    minutes, seconds = divmod(seconds, 60)
+    if days > 0:
+        return '%s%dd %2dh %2dm' % (sign_string, days, hours, minutes)
+    elif hours > 0:
+        return '%s%dh %2dm' % (sign_string, hours, minutes)
+    elif minutes > 0:
+        return '%s%dm' % (sign_string, minutes)
+    elif seconds > 0:
+        return '%s%2ds' % (sign_string, seconds)
+    else:
+        return '-'
+
+def compensate_for_weekend(right_edge, left_edge):
+    diff = right_edge - left_edge
+    if diff < 0:
+        raise BadDelta(left_edge, right_edge)
+
+    if diff < 86400:
+        return diff
+
+    le = epoch + timedelta(seconds=left_edge)
+    re = epoch + timedelta(seconds=right_edge)
+    for x in range((re - le).days + 1):
+        day = le + timedelta(x)
+        if day.weekday() > 4:
+            diff = diff - 86400
+    return diff
+
+def delta_threshold(right_edge, left_edge, threshold):
+    oc = clr_delta
+    if right_edge == 0 or left_edge == 0:
+        val = '-'
+        diff = 0
+    else:
+        diff = compensate_for_weekend(right_edge, left_edge)
+        if diff > threshold:
+            oc = clr_exceeds_threshold
+        val = ptd(diff)
+    return val, oc, diff
+
+class Stats():
+
+    def __init__(self):
+        self.bdb = BugzDB()
+        self.row1 = '    '
+        self.row2 = '    '
+
+    def h1(self, text):
+        self.row1 += CS('{:<22s}'.format(text),      clr_title)
+        self.row2 += CS('{:<22s}'.format('-' * 20),  clr_title)
+
+    def h2(self, text):
+        self.row1 += CS('{:>22s}'.format(text),      clr_title)
+        self.row2 += CS('{:>22s}'.format('-' * 18),  clr_title)
+
+    def cell(self, text):
+        pass
+
+    def render_header(self):
+        SPACE = ' '
+        self.row1 += f'{SPACE:26s}'
+        self.row2 += f'{SPACE:26s}'
+
+        self.h1('Bug ID (spin)')
+        self.h2('Crank')
+        self.h2('Build')
+        self.h2('Boot Testing')
+        self.h2('-propsed')
+
+        pro(self.row1)
+        pro(self.row2)
+
+    def render(self, args):
+        self.render_header()
+        row_odd = True
+        for cycle in args.cycles:
+            for series in BugHelper().series_in_cycle_ex(cycle):
+                if args.series is not None and series not in args.series:
+                    continue
+                pro(CS(series, clr_series))
+                for stats in BugHelper().stats_in_cycle_and_series(cycle, series):
+                    if args.packages is not None and stats.package not in args.packages:
+                        continue
+                    if row_odd:
+                        COLOR_BG = clr_bg_odd_rows
+                        row_odd = False
+                    else:
+                        COLOR_BG = clr_bg_even_rows
+                        row_odd = True
+                    o  = '    '
+                    o += CS(f'{stats.package:26s}', clr_package + COLOR_BG)
+                    bug = Bug().load(stats.id)
+                    s = f'lp: #{stats.id} ({bug.spin})'
+                    if not bug.master_bug_id:
+                        s += ' (m)'
+                    o += CS(f'{s:<22s}', clr_default + COLOR_BG)
+
+                    # Crank Time
+                    #
+                    val, oc, diff = delta_threshold(bug.tasks['prepare-package'].date_fix_released, bug.tasks['prepare-package'].date_in_progress, th_crank)
+                    o += style(f'{val:>22s}', oc + COLOR_BG)
+
+                    # Build Time
+                    try:
+                        val, oc, diff = delta_threshold(bug.tasks['boot-testing'].date_triaged, bug.tasks['prepare-package'].date_fix_committed, th_build)
+                    except BadDelta:
+                        # How this happens is that someone resets the prepare-package status to New and then has SWM do it's thing. This happens after promote-to-proposed
+                        # has been set to to something after confirmed and so there is skew in the delta.
+                        #
+                        val = '* date skew *'
+                        oc  = clr_skew
+                    o += style(f'{val:>22s}', oc + COLOR_BG)
+
+                    # Boot Testing
+                    #
+                    # val, oc, diff = delta_threshold(bug.tasks['boot-testing'].date_fix_released, bug.tasks['boot-testing'].date_confirmed, th_proposed)
+                    # val, oc, diff = delta_threshold(bug.tasks['boot-testing'].date_fix_released, bug.tasks['boot-testing'].date_triaged, th_proposed)
+                    val, oc, diff = delta_threshold(bug.tasks['boot-testing'].date_fix_released, bug.tasks['boot-testing'].date_triaged, th_proposed)
+                    o += style(f'{val:>22s}', oc + COLOR_BG)
+
+                    # Time until -proposed
+                    #
+                    val, oc, diff = delta_threshold(bug.tasks['promote-to-proposed'].date_fix_released, bug.tasks['prepare-package'].date_in_progress, th_proposed)
+                    o += style(f'{val:>22s}', oc + COLOR_BG)
+                    pro(o)
+
+        pro('''
+Legend:
+------------------------------------------------------------------------------------------------------------
+    Crank        - From when the prepare-package was confirmed until the prepare-package was committed.
+    Build        - From when prepare-package was committed until boot-testing is confirmed.
+    Boot Testing - boot-testing.triaged -> boot-testing.fix-released
+    -proposed    - From when prepare-package was marked In Progress until promote-to-proposed was Fix Released.
+''')
+
+    # main
+    #
+    def main(self, args):
+        retval = 0
+
+        output  = '    '
+        output += style('{:<26s}'.format(' '),                  clr_title)
+        output += style('{:<22s}'.format('Bug ID (spin)'),      clr_title)
+        output += style('{:>22s}'.format('Total [1]'),          clr_title)
+        output += style('{:>22s}'.format('Ready [2]'),          clr_title)
+        output += style('{:>22s}'.format('Waiting [3]'),        clr_title)
+        output += style('{:>22s}'.format('Crank [4]'),          clr_title)
+        output += style('{:>22s}'.format('Build [5]'),          clr_title)
+        output += style('{:>22s}'.format('Review Start [6]'),   clr_title)
+        output += style('{:>22s}'.format('Review [7]'),         clr_title)
+        output += style('{:>22s}'.format('Regression [8]'),     clr_title)
+        output += style('{:>22s}'.format('Verification [9]'),   clr_title)
+        output += style('{:>22s}'.format('Certification [10]'), clr_title)
+        output += style('{:>22s}'.format('Release [?]'), clr_title)
+        print(output)
+
+        output  = '    '
+        output += style('{:<26s}'.format(' '),                  clr_title)
+        output += style('{:<22s}'.format('-' * 20),             clr_title)
+        output += style('{:>22s}'.format('-' * 18),             clr_title)
+        output += style('{:>22s}'.format('-' * 18),             clr_title)
+        output += style('{:>22s}'.format('-' * 18),             clr_title)
+        output += style('{:>22s}'.format('-' * 18),             clr_title)
+        output += style('{:>22s}'.format('-' * 18),             clr_title)
+        output += style('{:>22s}'.format('-' * 18),             clr_title)
+        output += style('{:>22s}'.format('-' * 18),             clr_title)
+        output += style('{:>22s}'.format('-' * 18),             clr_title)
+        output += style('{:>22s}'.format('-' * 18),             clr_title)
+        output += style('{:>22s}'.format('-' * 18),             clr_title)
+        output += style('{:>22s}'.format('-' * 18),             clr_title)
+        print(output)
+
+        avg_time_total = 0
+        avg_tt_ready = 0
+        avg_tt_waiting = 0
+        avg_tt_crank = 0
+        avg_tt_regression_test = 0
+        avg_tt_cert_test = 0
+        avg_tt_verify_test = 0
+        avg_tt_build = 0
+        avg_tt_review_start = 0
+        avg_tt_review = 0
+        avg_tt_release = 0
+        row_odd = True
+        for series in BugHelper().series_in_cycle_ex(args.cycle):
+            if args.series and series not in args.series:
+                continue
+            print(style(series, clr_series))
+            for stats in BugHelper().stats_in_cycle_and_series(args.cycle, series):
+                # if stats.package not in ['linux-nvidia', 'linux-nvidia-6.5', 'linux-nvidia-6.8']:
+                #     continue
+                if row_odd:
+                    COLOR_BG = clr_bg_odd_rows
+                    row_odd = False
+                else:
+                    COLOR_BG = clr_bg_even_rows
+                    row_odd = True
+                bug = Bug().load(stats.id)
+                output  = '    '
+                output += style('{:26s}'.format(stats.package), clr_package + COLOR_BG)
+                if bug.master_bug_id:
+                    output += style('{:<22s}'.format('lp: #{} ({})'.format(stats.id, bug.spin)), clr_default + COLOR_BG)
+                else:
+                    output += style('{:<22s}'.format('lp: #{} ({}) (m)'.format(stats.id, bug.spin)), clr_default + COLOR_BG)
+                try:
+                    # Total
+                    #
+                    val, oc, diff = delta_threshold(bug.tasks['promote-to-updates'].date_fix_released, bug.tasks['prepare-package'].date_in_progress, th_ready)
+                    output += style('{:>22s}'.format(val), oc + COLOR_BG)
+
+                    # Ready to be cranked
+                    #
+                    val, oc, diff = delta_threshold(bug.tasks['prepare-package'].date_confirmed, bug.tasks['prepare-package'].date_created, th_ready)
+                    output += style('{:>22s}'.format(val), oc + COLOR_BG)
+
+                    # Waiting to be cranked
+                    #
+                    val, oc, diff = delta_threshold(bug.tasks['prepare-package'].date_in_progress, bug.tasks['prepare-package'].date_confirmed, th_ready)
+                    output += style('{:>22s}'.format(val), oc + COLOR_BG)
+
+                    # Crank
+                    #
+                    val, oc, diff = delta_threshold(bug.tasks['prepare-package'].date_fix_committed, bug.tasks['prepare-package'].date_in_progress, th_ready)
+                    output += style('{:>22s}'.format(val), oc + COLOR_BG)
+
+                    # Build
+                    #
+                    try:
+                        val, oc, diff = delta_threshold(bug.tasks['promote-to-proposed'].date_confirmed, bug.tasks['prepare-package'].date_fix_committed, th_ready)
+                        output += style('{:>22s}'.format(val), oc + COLOR_BG)
+                    except BadDelta:
+                        # How this happens is that someone resets the prepare-package status to New and then has SWM do it's thing. This happens after promote-to-proposed
+                        # has been set to to something after confirmed and so there is skew in the delta.
+                        #
+                        output += style('{:>22s}'.format('* date skew *'), COLOR_BG)
+
+                    # Review start
+                    #
+                    val, oc, diff = delta_threshold(bug.tasks['promote-to-proposed'].date_in_progress, bug.tasks['promote-to-proposed'].date_confirmed, th_ready)
+                    output += style('{:>22s}'.format(val), oc + COLOR_BG)
+
+                    # Review
+                    #
+                    val, oc, diff = delta_threshold(bug.tasks['promote-to-proposed'].date_fix_committed, bug.tasks['promote-to-proposed'].date_in_progress, th_ready)
+                    output += style('{:>22s}'.format(val), oc + COLOR_BG)
+
+                    # Regression testing
+                    #
+                    val, oc, diff = delta_threshold(bug.tasks['regression-testing'].date_fix_released, bug.tasks['regression-testing'].date_confirmed, th_ready)
+                    output += style('{:>22s}'.format(val), oc + COLOR_BG)
+
+                    # Verification testing
+                    #
+                    val, oc, diff = delta_threshold(bug.tasks['verification-testing'].date_fix_released, bug.tasks['verification-testing'].date_confirmed, th_ready)
+                    output += style('{:>22s}'.format(val), oc + COLOR_BG)
+
+                    # Certification testing
+                    #
+                    val, oc, diff = delta_threshold(bug.tasks['certification-testing'].date_fix_released, bug.tasks['certification-testing'].date_confirmed, th_ready)
+                    output += style('{:>22s}'.format(val), oc + COLOR_BG)
+
+                    # Release
+                    #   How long, after all the tests have been completed, does it take to release
+                    #   the kernels to the -updates/-security pockets?
+                    #
+                    vt  = bug.tasks['verification-testing'].date_fix_committed
+                    rt  = bug.tasks['regression-testing'].date_fix_committed
+                    ct  = bug.tasks['certification-testing'].date_fix_committed
+                    at  = bug.tasks['automated-testing'].date_fix_committed
+                    ss  = bug.tasks['security-signoff'].date_fix_committed
+                    try:
+                        sx  = bug.tasks['stakeholder-signoff'].date_fix_committed
+                    except KeyError:
+                        sx = 0
+                    left_edge  = max([vt, rt, ct, at, ss, sx])
+
+                    if bug.tasks['promote-to-security'].date_fix_released != 0:
+                        right_edge = bug.tasks['promote-to-security'].date_fix_released
+                    else:
+                        right_edge = bug.tasks['promote-to-updates'].date_fix_released
+
+                    val, oc, diff = delta_threshold(right_edge, left_edge, th_release)
+                    if diff > 0:
+                        avg_tt_release = (avg_tt_release + (right_edge - left_edge)) / 2
+                    output += style('{:>22s}'.format(val), oc + COLOR_BG)
+
+                    print(output)
+                except KeyError:
+                    print('Exception: lp: #{}'.format(stats.id))
+                    raise
+
+        print('')
+        output  = style('    {:26s}'.format(' '), clr_package)
+        output += style('{:>22s}'.format(' ' * 18), clr_default)
+        output += style('{:>22s}'.format('=' * 18), clr_default)
+        output += style('{:>22s}'.format('=' * 18), clr_default)
+        output += style('{:>22s}'.format('=' * 18), clr_default)
+        output += style('{:>22s}'.format('=' * 18), clr_default)
+        output += style('{:>22s}'.format('=' * 18), clr_default)
+        output += style('{:>22s}'.format('=' * 18), clr_default)
+        output += style('{:>22s}'.format('=' * 18), clr_default)
+        output += style('{:>22s}'.format('=' * 18), clr_default)
+        output += style('{:>22s}'.format('=' * 18), clr_default)
+        output += style('{:>22s}'.format('=' * 18), clr_default)
+        output += style('{:>22s}'.format('=' * 18), clr_default)
+        print(output)
+
+        output  = style('    {:<26s}'.format('Average Totals'), clr_package)
+        output += style('{:>22s}'.format(''), clr_default)
+        output += style('{:>22s}'.format(ptd(avg_time_total)), clr_default)
+        output += style('{:>22s}'.format(ptd(avg_tt_ready)), clr_default)
+        output += style('{:>22s}'.format(ptd(avg_tt_waiting)), clr_default)
+        output += style('{:>22s}'.format(ptd(avg_tt_crank)), clr_default)
+        output += style('{:>22s}'.format(ptd(avg_tt_build)), clr_default)
+        output += style('{:>22s}'.format(ptd(avg_tt_review_start)), clr_default)
+        output += style('{:>22s}'.format(ptd(avg_tt_review)), clr_default)
+        output += style('{:>22s}'.format(ptd(avg_tt_regression_test)), clr_default)
+        output += style('{:>22s}'.format(ptd(avg_tt_verify_test)), clr_default)
+        output += style('{:>22s}'.format(ptd(avg_tt_cert_test)), clr_default)
+        output += style('{:>22s}'.format(ptd(avg_tt_release)), clr_default)
+        print(output)
+
+        output  = style('    {:<26s}'.format('Threasholds'), clr_package)
+        output += style('{:>22s}'.format(''), clr_default)
+        output += style('{:>22s}'.format(ptd(th_total)), clr_default)
+        output += style('{:>22s}'.format(ptd(th_ready)), clr_default)
+        output += style('{:>22s}'.format(ptd(th_waiting)), clr_default)
+        output += style('{:>22s}'.format(ptd(th_crank)), clr_default)
+        output += style('{:>22s}'.format(ptd(th_build)), clr_default)
+        output += style('{:>22s}'.format(ptd(th_review_start)), clr_default)
+        output += style('{:>22s}'.format(ptd(the_review)), clr_default)
+        output += style('{:>22s}'.format('-'), clr_default)
+        output += style('{:>22s}'.format('-'), clr_default)
+        output += style('{:>22s}'.format('-'), clr_default)
+        output += style('{:>22s}'.format(ptd(th_release)), clr_default)
+        print(output)
+
+        if False:
+            print('''
+
+[1] Total                 = promote-to-updates(fix released)    - prepare-package(created)
+    The total length of time it took to produce a given kernel from when the tracking bug
+    was first created until the package ended up in -updates/-release
+
+[2] Ready                 = prepare-package(confirmed)          - prepare-package(created)
+    How long from the time the tracking bug was created until it was ready to have someone
+    start working on producing the related kernel.
+
+[3] Waiting               = prepare-package(in progress)        - prepare-package(confirmed)
+    How long before someone started working on the kernel package.
+
+[4] Crank                 = prepare-package(fix committed)      - prepare-package(in progress)
+    How long did it take someone to perform all the tasks to propare a kernel package and
+    upload it to the ppa for building.
+
+[5] Build                 = promote-to-proposed(confirmed)      - prepare-package(fix released)
+[6] Review Start          = promote-to-proposed(in progress)    - promote-to-proposed(confirmed)
+[7] Review                = promote-to-proposed(fix committed)  - promote-to-proposed(in progress)
+[8] Regression Testing    = regression-testing(fix released)    - regression-testing(confirmed)
+[9] Verification Testing  = verification-testing(fix released)  - verification-testing(confirmed)
+[10] Certification Testing = certification-testing(fix released) - certification-testing(confirmed)
+''')
+        return retval
+
+
+if __name__ == '__main__':
+    # Command line argument setup and initial processing
+    #
+    app_description = '''
+    '''
+    app_epilog = '''
+    '''
+
+    debug_help = '''
+Examples:
+    ./stats --cycles 2024.04.29 --series noble --packages linux-nvidia
+    '''
+    parser = ArgumentParser(description=app_description, epilog=app_epilog, formatter_class=RawDescriptionHelpFormatter)
+    parser.add_argument('--debug', action='store_true', default=False, help=debug_help)
+    parser.add_argument('--no-color', action='store_true', default=False, help=debug_help)
+    parser.add_argument('--cycles',   nargs="?", default=None, help='The SRU cycle tag.')
+    parser.add_argument('--series',   nargs='?', help='series')
+    parser.add_argument('--packages', nargs='?', help='series')
+
+    args = parser.parse_args()
+    try:
+        args.cycles = args.cycles.split(',')
+    except AttributeError:
+        pass
+    try:
+        args.series = args.series.split(',')
+    except AttributeError:
+        pass
+    try:
+        args.packages = args.packages.split(',')
+    except AttributeError:
+        pass
+    Stats().render(args)
