@@ -70,6 +70,13 @@ def duration(end_time, start_time):
         total_seconds = delta.total_seconds()
     return pretty_time, total_seconds
 
+def find_all_cycles():
+    results = []
+    q = 'select distinct cycle from bugs where cycle is not null and cycle != \'None\' and cycle <> \'\' order by cycle;'
+    for r in BugHelper().query(q):
+        results.append(r['cycle'])
+    return results
+
 # ptd
 #   Print Time Delta - pretty print the delta interval (integer).
 #
@@ -142,10 +149,26 @@ class Stats():
         self.row2 += f'{SPACE:26s}'
 
         self.h1('Bug ID (spin)')
-        self.h2('Crank')
-        self.h2('Build')
-        self.h2('Boot Testing')
-        self.h2('-propsed')
+        if args.crank:
+            self.h2('Crank')
+        if args.build:
+            self.h2('Build')
+        if args.proposed:
+            self.h2('-propsed')
+        if args.updates:
+            self.h2('-updates')
+        if args.bt:
+            self.h2('Boot')
+        if args.rt:
+            self.h2('Regression')
+        # if args.ct:
+        #     self.h2('Certification')
+        if args.at:
+            self.h2('ADT')
+        if args.sru:
+            self.h2('SRU Review')
+        if args.new:
+            self.h2('New Review')
 
         pro(self.row1)
         pro(self.row2)
@@ -175,33 +198,56 @@ class Stats():
                         s += ' (m)'
                     o += CS(f'{s:<22s}', clr_default + COLOR_BG)
 
-                    # Crank Time
-                    #
-                    val, oc, diff = delta_threshold(bug.tasks['prepare-package'].date_fix_released, bug.tasks['prepare-package'].date_in_progress, th_crank)
-                    o += style(f'{val:>22s}', oc + COLOR_BG)
-
-                    # Build Time
-                    try:
-                        val, oc, diff = delta_threshold(bug.tasks['boot-testing'].date_triaged, bug.tasks['prepare-package'].date_fix_committed, th_build)
-                    except BadDelta:
-                        # How this happens is that someone resets the prepare-package status to New and then has SWM do it's thing. This happens after promote-to-proposed
-                        # has been set to to something after confirmed and so there is skew in the delta.
+                    if args.crank:
+                        # Crank Time
                         #
-                        val = '* date skew *'
-                        oc  = clr_skew
-                    o += style(f'{val:>22s}', oc + COLOR_BG)
+                        val, oc, diff = delta_threshold(bug.tasks['prepare-package'].date_fix_released, bug.tasks['prepare-package'].date_in_progress, th_crank)
+                        o += style(f'{val:>22s}', oc + COLOR_BG)
 
-                    # Boot Testing
-                    #
-                    # val, oc, diff = delta_threshold(bug.tasks['boot-testing'].date_fix_released, bug.tasks['boot-testing'].date_confirmed, th_proposed)
-                    # val, oc, diff = delta_threshold(bug.tasks['boot-testing'].date_fix_released, bug.tasks['boot-testing'].date_triaged, th_proposed)
-                    val, oc, diff = delta_threshold(bug.tasks['boot-testing'].date_fix_released, bug.tasks['boot-testing'].date_triaged, th_proposed)
-                    o += style(f'{val:>22s}', oc + COLOR_BG)
+                    if args.build:
+                        # Build Time
+                        try:
+                            val, oc, diff = delta_threshold(bug.tasks['boot-testing'].date_triaged, bug.tasks['prepare-package'].date_fix_committed, th_build)
+                        except BadDelta:
+                            # How this happens is that someone resets the prepare-package status to New and then has SWM do it's thing. This happens after promote-to-proposed
+                            # has been set to to something after confirmed and so there is skew in the delta.
+                            #
+                            val = '* date skew *'
+                            oc  = clr_skew
+                        o += style(f'{val:>22s}', oc + COLOR_BG)
 
-                    # Time until -proposed
-                    #
-                    val, oc, diff = delta_threshold(bug.tasks['promote-to-proposed'].date_fix_released, bug.tasks['prepare-package'].date_in_progress, th_proposed)
-                    o += style(f'{val:>22s}', oc + COLOR_BG)
+                    if args.bt:
+                        # Boot Testing
+                        #
+                        val, oc, diff = delta_threshold(bug.tasks['boot-testing'].date_fix_released, bug.tasks['boot-testing'].date_triaged, th_proposed)
+                        o += style(f'{val:>22s}', oc + COLOR_BG)
+
+                    if args.proposed:
+                        # Time until -proposed
+                        #
+                        val, oc, diff = delta_threshold(bug.tasks['promote-to-proposed'].date_fix_released, bug.tasks['prepare-package'].date_in_progress, th_proposed)
+                        o += style(f'{val:>22s}', oc + COLOR_BG)
+
+                    if args.rt:
+                        val, oc, diff = delta_threshold(bug.tasks['regression-testing'].date_fix_released, bug.tasks['regression-testing'].date_incomplete, th_proposed)
+                        o += style(f'{val:>22s}', oc + COLOR_BG)
+
+                    # if args.ct:
+                    #     val, oc, diff = delta_threshold(bug.tasks['certification-testing'].date_fix_released, bug.tasks['certification-testing'].date_opinion, th_proposed)
+                    #     o += style(f'{val:>22s}', oc + COLOR_BG)
+
+                    if args.at:
+                        val, oc, diff = delta_threshold(bug.tasks['automated-testing'].date_fix_released, bug.tasks['automated-testing'].date_incomplete, th_proposed)
+                        o += style(f'{val:>22s}', oc + COLOR_BG)
+
+                    if args.sru:
+                        val, oc, diff = delta_threshold(bug.tasks['sru-review'].date_fix_released, bug.tasks['sru-review'].date_triaged, th_proposed)
+                        o += style(f'{val:>22s}', oc + COLOR_BG)
+
+                    if args.new:
+                        val, oc, diff = delta_threshold(bug.tasks['new-review'].date_fix_released, bug.tasks['new-review'].date_triaged, th_proposed)
+                        o += style(f'{val:>22s}', oc + COLOR_BG)
+
                     pro(o)
 
         pro('''
@@ -224,7 +270,8 @@ Legend:
         output += style('{:>22s}'.format('Total [1]'),          clr_title)
         output += style('{:>22s}'.format('Ready [2]'),          clr_title)
         output += style('{:>22s}'.format('Waiting [3]'),        clr_title)
-        output += style('{:>22s}'.format('Crank [4]'),          clr_title)
+        if args.crank:
+            output += style('{:>22s}'.format('Crank [4]'),          clr_title)
         output += style('{:>22s}'.format('Build [5]'),          clr_title)
         output += style('{:>22s}'.format('Review Start [6]'),   clr_title)
         output += style('{:>22s}'.format('Review [7]'),         clr_title)
@@ -240,7 +287,8 @@ Legend:
         output += style('{:>22s}'.format('-' * 18),             clr_title)
         output += style('{:>22s}'.format('-' * 18),             clr_title)
         output += style('{:>22s}'.format('-' * 18),             clr_title)
-        output += style('{:>22s}'.format('-' * 18),             clr_title)
+        if args.crank:
+            output += style('{:>22s}'.format('-' * 18),             clr_title)
         output += style('{:>22s}'.format('-' * 18),             clr_title)
         output += style('{:>22s}'.format('-' * 18),             clr_title)
         output += style('{:>22s}'.format('-' * 18),             clr_title)
@@ -298,10 +346,11 @@ Legend:
                     val, oc, diff = delta_threshold(bug.tasks['prepare-package'].date_in_progress, bug.tasks['prepare-package'].date_confirmed, th_ready)
                     output += style('{:>22s}'.format(val), oc + COLOR_BG)
 
-                    # Crank
-                    #
-                    val, oc, diff = delta_threshold(bug.tasks['prepare-package'].date_fix_committed, bug.tasks['prepare-package'].date_in_progress, th_ready)
-                    output += style('{:>22s}'.format(val), oc + COLOR_BG)
+                    if args.crank:
+                        # Crank
+                        #
+                        val, oc, diff = delta_threshold(bug.tasks['prepare-package'].date_fix_committed, bug.tasks['prepare-package'].date_in_progress, th_ready)
+                        output += style('{:>22s}'.format(val), oc + COLOR_BG)
 
                     # Build
                     #
@@ -375,7 +424,8 @@ Legend:
         output += style('{:>22s}'.format('=' * 18), clr_default)
         output += style('{:>22s}'.format('=' * 18), clr_default)
         output += style('{:>22s}'.format('=' * 18), clr_default)
-        output += style('{:>22s}'.format('=' * 18), clr_default)
+        if args.crank:
+            output += style('{:>22s}'.format('=' * 18), clr_default)
         output += style('{:>22s}'.format('=' * 18), clr_default)
         output += style('{:>22s}'.format('=' * 18), clr_default)
         output += style('{:>22s}'.format('=' * 18), clr_default)
@@ -390,7 +440,8 @@ Legend:
         output += style('{:>22s}'.format(ptd(avg_time_total)), clr_default)
         output += style('{:>22s}'.format(ptd(avg_tt_ready)), clr_default)
         output += style('{:>22s}'.format(ptd(avg_tt_waiting)), clr_default)
-        output += style('{:>22s}'.format(ptd(avg_tt_crank)), clr_default)
+        if args.crank:
+            output += style('{:>22s}'.format(ptd(avg_tt_crank)), clr_default)
         output += style('{:>22s}'.format(ptd(avg_tt_build)), clr_default)
         output += style('{:>22s}'.format(ptd(avg_tt_review_start)), clr_default)
         output += style('{:>22s}'.format(ptd(avg_tt_review)), clr_default)
@@ -447,26 +498,38 @@ if __name__ == '__main__':
     # Command line argument setup and initial processing
     #
     app_description = '''
+This util takes the data in the database created and updated via db-update and produces Ubuntu Kernel SRU statistics for the various kernels for the
+specified cycles and series.
     '''
     app_epilog = '''
-    '''
-
-    debug_help = '''
 Examples:
     ./stats --cycles 2024.04.29 --series noble --packages linux-nvidia
     '''
+    crank_help    = 'How long to "crank": prepare-package(in progress) -> prepare-package(fix committed)'
+    build_help    = 'Build time duration: prepare-package(in progress) -> prepare-package(fix committed)'
+    boot_help     = 'Boot testing duration: prepare-package(in progress) -> prepare-package(fix committed)'
+    proposed_help = 'How long to get to -proposed: prepare-package(in progress) -> prepare-package(fix committed)'
     parser = ArgumentParser(description=app_description, epilog=app_epilog, formatter_class=RawDescriptionHelpFormatter)
-    parser.add_argument('--debug', action='store_true', default=False, help=debug_help)
-    parser.add_argument('--no-color', action='store_true', default=False, help=debug_help)
     parser.add_argument('--cycles',   nargs="?", default=None, help='The SRU cycle tag.')
-    parser.add_argument('--series',   nargs='?', help='series')
-    parser.add_argument('--packages', nargs='?', help='series')
+    parser.add_argument('--series',   nargs='?', help='One or more Ubuntu series (noble,jammy,focal) separated by commas.')
+    parser.add_argument('--packages', nargs='?', help='One or more kernel source packages separated by commas.')
+    parser.add_argument('--crank', action='store_true', default=False, help=crank_help)
+    parser.add_argument('--build', action='store_true', default=False, help=build_help)
+    parser.add_argument('--proposed', action='store_true', default=False, help=proposed_help)
+    parser.add_argument('--updates', action='store_true', default=False, help='prepare-package:In Progress -> promote-to-updates:Fix Released')
+    parser.add_argument('--bt', action='store_true', default=False, help='prepare-package:In Progress -> prepare-package:Fix Released')
+    parser.add_argument('--rt', action='store_true', default=False, help='regression-testing:Incomplete -> regression-testing:Fix Released')
+    parser.add_argument('--ct', action='store_true', default=False, help='certification-testing:Opinion -> certification-testing:Fix Released')
+    parser.add_argument('--at', action='store_true', default=False, help='automated-testing:Incomplete -> automated-testing:Fix Released')
+    parser.add_argument('--sru', action='store_true', default=False, help='')
+    parser.add_argument('--new', action='store_true', default=False, help='')
 
     args = parser.parse_args()
     try:
         args.cycles = args.cycles.split(',')
     except AttributeError:
-        pass
+        args.cycles = find_all_cycles()
+        pro(args.cycles)
     try:
         args.series = args.series.split(',')
     except AttributeError:
