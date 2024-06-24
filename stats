@@ -228,8 +228,21 @@ class Stats():
                         val, oc, diff = delta_threshold(bug.tasks['promote-to-proposed'].date_fix_released, bug.tasks['prepare-package'].date_in_progress, th_proposed)
                         o += style(f'{val:>22s}', oc + COLOR_BG)
 
+                    if args.updates:
+                        # Time until -updates
+                        #
+                        val, oc, diff = delta_threshold(bug.tasks['promote-to-updates'].date_fix_released, bug.tasks['prepare-package'].date_in_progress, th_proposed)
+                        o += style(f'{val:>22s}', oc + COLOR_BG)
+
                     if args.rt:
-                        val, oc, diff = delta_threshold(bug.tasks['regression-testing'].date_fix_released, bug.tasks['regression-testing'].date_incomplete, th_proposed)
+                        try:
+                            val, oc, diff = delta_threshold(bug.tasks['regression-testing'].date_fix_released, bug.tasks['regression-testing'].date_incomplete, th_proposed)
+                        except BadDelta:
+                            # How this happens is that someone resets the prepare-package status to New and then has SWM do it's thing. This happens after promote-to-proposed
+                            # has been set to to something after confirmed and so there is skew in the delta.
+                            #
+                            val = '* date skew *'
+                            oc  = clr_skew
                         o += style(f'{val:>22s}', oc + COLOR_BG)
 
                     # if args.ct:
@@ -250,14 +263,30 @@ class Stats():
 
                     pro(o)
 
-        pro('''
+        legend = '''
 Legend:
 ------------------------------------------------------------------------------------------------------------
-    Crank        - From when the prepare-package was confirmed until the prepare-package was committed.
-    Build        - From when prepare-package was committed until boot-testing is confirmed.
-    Boot Testing - boot-testing.triaged -> boot-testing.fix-released
-    -proposed    - From when prepare-package was marked In Progress until promote-to-proposed was Fix Released.
-''')
+'''
+        if args.crank:
+            legend += 'Crank        - Time from when the prepare-package was confirmed until the prepare-package was committed.\n'
+        if args.build:
+            legend += 'Build        - Time from prepare-package set to Fix Committed until boot-testing set to Triaged\n'
+        if args.proposed:
+            legend += '-proposed    - Time from promote-to-proposed set to In Progress until promote-to-proposed set to Fix Released\n'
+        if args.proposed:
+            legend += '-updates     - Time from promote-to-proposed set to In Progress until promote-to-proposed set to Fix Released\n'
+        if args.bt:
+            legend += 'Boot         - Time from boot-testing set to Incomplete until boot-testing set to Fix Released\n'
+        if args.rt:
+            legend += 'Regression   - Time from regression-testing set to Incomplete until regression-testing set to Fix Released\n'
+        if args.at:
+            legend += 'ADT          - Time from automated-testing set to Incomplete until automated-testing set to Fix Released\n'
+        if args.sru:
+            legend += 'SRU Review   - Time from sru-review set to Triaged until sru-review set to Fix Released\n'
+        if args.new:
+            legend += 'New Review   - Time from new-review set to Triaged until new-review set to Fix Released\n'
+
+        pro(legend)
 
 
 if __name__ == '__main__':
@@ -285,7 +314,7 @@ Examples:
     parser.add_argument('--updates', action='store_true', default=False, help='prepare-package:In Progress -> promote-to-updates:Fix Released')
     parser.add_argument('--bt', action='store_true', default=False, help='prepare-package:In Progress -> prepare-package:Fix Released')
     parser.add_argument('--rt', action='store_true', default=False, help='regression-testing:Incomplete -> regression-testing:Fix Released')
-    parser.add_argument('--ct', action='store_true', default=False, help='certification-testing:Opinion -> certification-testing:Fix Released')
+    # parser.add_argument('--ct', action='store_true', default=False, help='certification-testing:Opinion -> certification-testing:Fix Released')
     parser.add_argument('--at', action='store_true', default=False, help='automated-testing:Incomplete -> automated-testing:Fix Released')
     parser.add_argument('--sru', action='store_true', default=False, help='')
     parser.add_argument('--new', action='store_true', default=False, help='')
