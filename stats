@@ -8,39 +8,8 @@ from lib.bugzdb                         import BugzDB
 from lib.bug                            import Bug, BugHelper
 import lib.colored
 from bcore.std                          import CS
+import yaml
 
-clr_duration     = 'green'
-clr_crank        = 'cyan'
-clr_build        = 'yellow_2'
-clr_sru          = 'light_coral'
-clr_lino         = 'dark_khaki'
-clr_testing      = 'cyan'
-clr_proposed     = 'sea_green_1a'
-clr_updates      = 'sea_green_1a'
-clr_signing      = 'light_goldenrod_3'
-clr_default      = 'white'
-clr_bt           = 'plum_2'
-clr_highlight    = 'yellow_1'
-
-clr_title             = lib.colored.fg('yellow_1')
-clr_delta             = lib.colored.fg('cyan')
-clr_exceeds_threshold = lib.colored.fg('magenta_1') + lib.colored.attr('bold')
-clr_default       = lib.colored.fg('white')
-clr_series        = lib.colored.fg('green') + lib.colored.attr('bold')
-clr_package       = lib.colored.fg('yellow_1')
-clr_bg_odd_rows  = lib.colored.bg('black')
-clr_bg_even_rows = lib.colored.bg('grey_15')
-clr_skew          = lib.colored.fg('wheat_1')
-
-th_total        = 1900840  # Approx. 22 days
-th_ready        = 86400    # Approx. 1 day
-th_waiting      = 43200    # Approx. .5 day
-th_crank        = 7200     # Approx. 2 hrs.
-th_build        = 21600    # Approx. 6 hrs.
-th_proposed     = 43200    # Approx. 6 hrs.
-th_review_start = 43200    # Approx. .5 day
-the_review       = 43200    # Approx. .5 day
-th_release      = 86400    # Approx. 1 day
 
 def pro(*args, **kwargs):
     print(*args, file=sys.stdout, **kwargs)
@@ -113,35 +82,56 @@ def compensate_for_weekend(right_edge, left_edge):
             diff = diff - 86400
     return diff
 
-def delta_threshold(right_edge, left_edge, threshold):
-    oc = clr_delta
-    if right_edge == 0 or left_edge == 0:
-        val = '-'
-        diff = 0
-    else:
-        diff = compensate_for_weekend(right_edge, left_edge)
-        if diff > threshold:
-            oc = clr_exceeds_threshold
-        val = ptd(diff)
-    return val, oc, diff
-
 class Stats():
 
     def __init__(self):
         self.bdb = BugzDB()
         self.row1 = '    '
         self.row2 = '    '
+        with open('config.yaml', 'r') as f:
+            cfg = yaml.safe_load(f.read())
+        self.clr_title             = lib.colored.fg(cfg['colors']['title'])
+        self.clr_delta             = lib.colored.fg(cfg['colors']['delta'])
+        self.clr_exceeds_threshold = lib.colored.fg(cfg['colors']['exceeds_threshold']) + lib.colored.attr('bold')
+        self.clr_default           = lib.colored.fg(cfg['colors']['default'])
+        self.clr_series            = lib.colored.fg(cfg['colors']['series']) + lib.colored.attr('bold')
+        self.clr_package           = lib.colored.fg(cfg['colors']['package'])
+        self.clr_bg_odd_rows       = lib.colored.bg(cfg['colors']['bg_odd_rows'])
+        self.clr_bg_even_rows      = lib.colored.bg(cfg['colors']['bg_even_rows'])
+        self.clr_skew              = lib.colored.fg(cfg['colors']['skew'])
+
+        self.th_total              = cfg['thresholds']['total']
+        self.th_ready              = cfg['thresholds']['ready']
+        self.th_waiting            = cfg['thresholds']['waiting']
+        self.th_crank              = cfg['thresholds']['crank']
+        self.th_build              = cfg['thresholds']['build']
+        self.th_proposed           = cfg['thresholds']['proposed']
+        self.th_review_start       = cfg['thresholds']['review_start']
+        self.the_review            = cfg['thresholds']['review']
+        self.th_release            = cfg['thresholds']['release']
 
     def h1(self, text):
-        self.row1 += CS('{:<22s}'.format(text),      clr_title)
-        self.row2 += CS('{:<22s}'.format('-' * 20),  clr_title)
+        self.row1 += CS('{:<22s}'.format(text),      self.clr_title)
+        self.row2 += CS('{:<22s}'.format('-' * 20),  self.clr_title)
 
     def h2(self, text):
-        self.row1 += CS('{:>22s}'.format(text),      clr_title)
-        self.row2 += CS('{:>22s}'.format('-' * 18),  clr_title)
+        self.row1 += CS('{:>22s}'.format(text),      self.clr_title)
+        self.row2 += CS('{:>22s}'.format('-' * 18),  self.clr_title)
 
     def cell(self, text):
         pass
+
+    def delta_threshold(self, right_edge, left_edge, threshold):
+        oc = self.clr_delta
+        if right_edge == 0 or left_edge == 0:
+            val = '-'
+            diff = 0
+        else:
+            diff = compensate_for_weekend(right_edge, left_edge)
+            if diff > threshold:
+                oc = self.clr_exceeds_threshold
+            val = ptd(diff)
+        return val, oc, diff
 
     def render_header(self):
         SPACE = ' '
@@ -180,85 +170,85 @@ class Stats():
             for series in BugHelper().series_in_cycle_ex(cycle):
                 if args.series is not None and series not in args.series:
                     continue
-                pro(CS(series, clr_series))
+                pro(CS(series, self.clr_series))
                 for stats in BugHelper().stats_in_cycle_and_series(cycle, series):
                     if args.packages is not None and stats.package not in args.packages:
                         continue
                     if row_odd:
-                        COLOR_BG = clr_bg_odd_rows
+                        COLOR_BG = self.clr_bg_odd_rows
                         row_odd = False
                     else:
-                        COLOR_BG = clr_bg_even_rows
+                        COLOR_BG = self.clr_bg_even_rows
                         row_odd = True
                     o  = '    '
-                    o += CS(f'{stats.package:26s}', clr_package + COLOR_BG)
+                    o += CS(f'{stats.package:26s}', self.clr_package + COLOR_BG)
                     bug = Bug().load(stats.id)
                     s = f'lp: #{stats.id} ({bug.spin})'
                     if not bug.master_bug_id:
                         s += ' (m)'
-                    o += CS(f'{s:<22s}', clr_default + COLOR_BG)
+                    o += CS(f'{s:<22s}', self.clr_default + COLOR_BG)
 
                     if args.crank:
                         # Crank Time
                         #
-                        val, oc, diff = delta_threshold(bug.tasks['prepare-package'].date_fix_released, bug.tasks['prepare-package'].date_in_progress, th_crank)
+                        val, oc, diff = self.delta_threshold(bug.tasks['prepare-package'].date_fix_released, bug.tasks['prepare-package'].date_in_progress, self.th_crank)
                         o += style(f'{val:>22s}', oc + COLOR_BG)
 
                     if args.build:
                         # Build Time
                         try:
-                            val, oc, diff = delta_threshold(bug.tasks['boot-testing'].date_triaged, bug.tasks['prepare-package'].date_fix_committed, th_build)
+                            val, oc, diff = self.delta_threshold(bug.tasks['boot-testing'].date_triaged, bug.tasks['prepare-package'].date_fix_committed, self.th_build)
                         except BadDelta:
                             # How this happens is that someone resets the prepare-package status to New and then has SWM do it's thing. This happens after promote-to-proposed
                             # has been set to to something after confirmed and so there is skew in the delta.
                             #
                             val = '* date skew *'
-                            oc  = clr_skew
+                            oc  = self.clr_skew
                         o += style(f'{val:>22s}', oc + COLOR_BG)
 
                     if args.bt:
                         # Boot Testing
                         #
-                        val, oc, diff = delta_threshold(bug.tasks['boot-testing'].date_fix_released, bug.tasks['boot-testing'].date_triaged, th_proposed)
+                        val, oc, diff = self.delta_threshold(bug.tasks['boot-testing'].date_fix_released, bug.tasks['boot-testing'].date_triaged, self.th_proposed)
                         o += style(f'{val:>22s}', oc + COLOR_BG)
 
                     if args.proposed:
                         # Time until -proposed
                         #
-                        val, oc, diff = delta_threshold(bug.tasks['promote-to-proposed'].date_fix_released, bug.tasks['prepare-package'].date_in_progress, th_proposed)
+                        val, oc, diff = self.delta_threshold(bug.tasks['promote-to-proposed'].date_fix_released, bug.tasks['prepare-package'].date_in_progress, self.th_proposed)
                         o += style(f'{val:>22s}', oc + COLOR_BG)
 
                     if args.updates:
                         # Time until -updates
                         #
-                        val, oc, diff = delta_threshold(bug.tasks['promote-to-updates'].date_fix_released, bug.tasks['prepare-package'].date_in_progress, th_proposed)
+                        val, oc, diff = self.delta_threshold(bug.tasks['promote-to-updates'].date_fix_released, bug.tasks['prepare-package'].date_in_progress, self.th_proposed)
                         o += style(f'{val:>22s}', oc + COLOR_BG)
 
                     if args.rt:
                         try:
-                            val, oc, diff = delta_threshold(bug.tasks['regression-testing'].date_fix_released, bug.tasks['regression-testing'].date_incomplete, th_proposed)
+                            val, oc, diff = self.delta_threshold(bug.tasks['regression-testing'].date_fix_released, bug.tasks['regression-testing'].date_incomplete, self.th_proposed)
                         except BadDelta:
                             # How this happens is that someone resets the prepare-package status to New and then has SWM do it's thing. This happens after promote-to-proposed
                             # has been set to to something after confirmed and so there is skew in the delta.
                             #
                             val = '* date skew *'
-                            oc  = clr_skew
+                            oc  = self.clr_skew
                         o += style(f'{val:>22s}', oc + COLOR_BG)
 
                     # if args.ct:
-                    #     val, oc, diff = delta_threshold(bug.tasks['certification-testing'].date_fix_released, bug.tasks['certification-testing'].date_opinion, th_proposed)
+                    #     val, oc, diff = self.delta_threshold(bug.tasks['certification-testing'].date_fix_released, bug.tasks['certification-testing'].date_opinion, self.th_proposed)
                     #     o += style(f'{val:>22s}', oc + COLOR_BG)
 
                     if args.at:
-                        val, oc, diff = delta_threshold(bug.tasks['automated-testing'].date_fix_released, bug.tasks['automated-testing'].date_incomplete, th_proposed)
+                        val, oc, diff = self.delta_threshold(bug.tasks['automated-testing'].date_fix_released, bug.tasks['automated-testing'].date_incomplete, self.th_proposed)
                         o += style(f'{val:>22s}', oc + COLOR_BG)
 
                     if args.sru:
-                        val, oc, diff = delta_threshold(bug.tasks['sru-review'].date_fix_released, bug.tasks['sru-review'].date_triaged, th_proposed)
+                        val, oc, diff = self.delta_threshold(bug.tasks['sru-review'].date_fix_released, bug.tasks['sru-review'].date_triaged, self.th_proposed)
                         o += style(f'{val:>22s}', oc + COLOR_BG)
 
                     if args.new:
-                        val, oc, diff = delta_threshold(bug.tasks['new-review'].date_fix_released, bug.tasks['new-review'].date_triaged, th_proposed)
+                        val, oc, diff = self.delta_threshold(bug.tasks['new-review'].date_fix_released, bug.tasks['new-review'].date_triaged, self.th_proposed)
                         o += style(f'{val:>22s}', oc + COLOR_BG)
 
                     pro(o)
