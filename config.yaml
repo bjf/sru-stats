@@ -26,3 +26,8 @@ thresholds:
     review_start:        43200 # .5 days
     review:              43200 # .5 days
     release:             86400 #  1 day
+    bt:                   7200 #  2 hrs
+    rt:                  86400 #  1 day
+    at:                  86400 #  1 day
+    sru:                  7200 #  2 hrs
+    new:                  7200 #  2 hrs
