@@ -148,22 +148,22 @@ class Stats():
             self.h2('Crank')
         if args.build:
             self.h2('Build')
-        if args.proposed:
-            self.h2('-propsed')
-        if args.updates:
-            self.h2('-updates')
         if args.bt:
             self.h2('Boot')
+        if args.sru:
+            self.h2('SRU Review')
+        if args.new:
+            self.h2('New Review')
         if args.rt:
             self.h2('Regression')
         # if args.ct:
         #     self.h2('Certification')
         if args.at:
             self.h2('ADT')
-        if args.sru:
-            self.h2('SRU Review')
-        if args.new:
-            self.h2('New Review')
+        if args.proposed:
+            self.h2('-proposed')
+        if args.updates:
+            self.h2('-updates')
 
         pro(self.row1)
         pro(self.row2)
@@ -223,10 +223,12 @@ class Stats():
                         val, oc, diff = self.delta_threshold(bug.tasks['promote-to-proposed'].date_fix_released, bug.tasks['prepare-package'].date_in_progress, self.th_proposed)
                         o += style(f'{val:>22s}', oc + COLOR_BG)
 
-                    if args.updates:
-                        # Time until -updates
-                        #
-                        val, oc, diff = self.delta_threshold(bug.tasks['promote-to-updates'].date_fix_released, bug.tasks['prepare-package'].date_in_progress, self.th_updates)
+                    if args.sru:
+                        val, oc, diff = self.delta_threshold(bug.tasks['sru-review'].date_fix_released, bug.tasks['sru-review'].date_triaged, self.th_sru)
+                        o += style(f'{val:>22s}', oc + COLOR_BG)
+
+                    if args.new:
+                        val, oc, diff = self.delta_threshold(bug.tasks['new-review'].date_fix_released, bug.tasks['new-review'].date_triaged, self.th_new)
                         o += style(f'{val:>22s}', oc + COLOR_BG)
 
                     if args.rt:
@@ -248,12 +250,10 @@ class Stats():
                         val, oc, diff = self.delta_threshold(bug.tasks['automated-testing'].date_fix_released, bug.tasks['automated-testing'].date_incomplete, self.th_rt)
                         o += style(f'{val:>22s}', oc + COLOR_BG)
 
-                    if args.sru:
-                        val, oc, diff = self.delta_threshold(bug.tasks['sru-review'].date_fix_released, bug.tasks['sru-review'].date_triaged, self.th_sru)
-                        o += style(f'{val:>22s}', oc + COLOR_BG)
-
-                    if args.new:
-                        val, oc, diff = self.delta_threshold(bug.tasks['new-review'].date_fix_released, bug.tasks['new-review'].date_triaged, self.th_new)
+                    if args.updates:
+                        # Time until -updates
+                        #
+                        val, oc, diff = self.delta_threshold(bug.tasks['promote-to-updates'].date_fix_released, bug.tasks['prepare-package'].date_in_progress, self.th_updates)
                         o += style(f'{val:>22s}', oc + COLOR_BG)
 
                     pro(o)
@@ -298,7 +298,7 @@ Examples:
     crank_help    = 'How long to "crank": prepare-package(in progress) -> prepare-package(fix committed)'
     build_help    = 'Build time duration: prepare-package(in progress) -> prepare-package(fix committed)'
     boot_help     = 'Boot testing duration: prepare-package(in progress) -> prepare-package(fix committed)'
-    proposed_help = 'How long to get to -proposed: prepare-package(in progress) -> prepare-package(fix committed)'
+    proposed_help = 'Show the times for each stage between when a crank starts and when the kernel reaches the -proposed pocket and a total time as well.'
     parser = ArgumentParser(description=app_description, epilog=app_epilog, formatter_class=RawDescriptionHelpFormatter)
     parser.add_argument('--cycles',   nargs="?", default=None, help='The SRU cycle tag.')
     parser.add_argument('--series',   nargs='?', help='One or more Ubuntu series (noble,jammy,focal) separated by commas.')
@@ -306,13 +306,13 @@ Examples:
     parser.add_argument('--crank', action='store_true', default=False, help=crank_help)
     parser.add_argument('--build', action='store_true', default=False, help=build_help)
     parser.add_argument('--proposed', action='store_true', default=False, help=proposed_help)
-    parser.add_argument('--updates', action='store_true', default=False, help='prepare-package:In Progress -> promote-to-updates:Fix Released')
-    parser.add_argument('--bt', action='store_true', default=False, help='prepare-package:In Progress -> prepare-package:Fix Released')
-    parser.add_argument('--rt', action='store_true', default=False, help='regression-testing:Incomplete -> regression-testing:Fix Released')
+    parser.add_argument('--updates', action='store_true', default=False, help='Show the time it takes to go from the start of a crank until the kernel reaches the -updates pocket.')
+    parser.add_argument('--bt', action='store_true', default=False, help='Show the time it takes to perform boot testing.')
+    parser.add_argument('--rt', action='store_true', default=False, help='Show the time it takes to perform regression testing.')
     # parser.add_argument('--ct', action='store_true', default=False, help='certification-testing:Opinion -> certification-testing:Fix Released')
-    parser.add_argument('--at', action='store_true', default=False, help='automated-testing:Incomplete -> automated-testing:Fix Released')
-    parser.add_argument('--sru', action='store_true', default=False, help='')
-    parser.add_argument('--new', action='store_true', default=False, help='')
+    parser.add_argument('--at', action='store_true', default=False, help='Show how long to perform ADT testing.')
+    parser.add_argument('--sru', action='store_true', default=False, help='Show how long it takes for an sru review.')
+    parser.add_argument('--new', action='store_true', default=False, help='Show how long it takes for a new package review.')
 
     args = parser.parse_args()
     try:
@@ -328,4 +328,10 @@ Examples:
         args.packages = args.packages.split(',')
     except AttributeError:
         pass
+    if args.proposed:
+        args.crank = True
+        args.build = True
+        args.new   = True
+        args.sru   = True
+        args.bt    = True
     Stats().render(args)
