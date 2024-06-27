@@ -9,7 +9,7 @@ colors:
     series:            green
     package:           yellow_1
     bg_odd_rows:       black
-    bg_even_rows:      grey_15
+    bg_even_rows:      grey_11
     skew:              wheat_1
 
 # When calculating the number of days a stage in the process takes, the result is compared to
