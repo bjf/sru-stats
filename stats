@@ -334,4 +334,6 @@ Examples:
         args.new   = True
         args.sru   = True
         args.bt    = True
+    if args.updates:
+        args.proposed = True
     Stats().render(args)
