@@ -9,7 +9,9 @@ from lib.bug                            import Bug, SRUCycleStats, BugHelper
 from datetime                           import datetime, timedelta
 from urllib.request                     import urlopen
 import yaml
-from bcore.std                          import pro
+
+def pro(*args, **kwargs):
+    print(*args, file=sys.stdout, **kwargs)
 
 def search_callback_ex(lpbug, lp=None):
     try:

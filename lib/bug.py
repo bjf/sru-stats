@@ -6,7 +6,6 @@ from lib.bugzdb                         import BugzDB
 from datetime                           import datetime, timezone, timedelta
 import re
 import yaml
-from bcore.std                          import proj, pro
 
 SeriesOrder = [
     'noble',

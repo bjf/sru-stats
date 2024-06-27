@@ -7,7 +7,6 @@ from datetime                           import datetime, timezone, timedelta
 from lib.bugzdb                         import BugzDB
 from lib.bug                            import Bug, BugHelper
 import lib.colored
-from bcore.std                          import CS
 import yaml
 
 
@@ -16,6 +15,9 @@ def pro(*args, **kwargs):
 
 def style(text, color):
     return lib.colored.stylize(text, color)
+
+def CS(txt, clr):
+    return style(txt, clr)
 
 
 epoch = datetime(2009, 3, 2, 0, 0, tzinfo=timezone.utc)
