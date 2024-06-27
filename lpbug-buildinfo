@@ -1,0 +1,271 @@
+#!/usr/bin/env python3
+#
+
+import sys
+from argparse                           import ArgumentParser, RawDescriptionHelpFormatter
+from launchpadlib.launchpad             import Launchpad
+from urllib.request                     import urlopen
+import json
+import yaml
+import lib.colored
+
+def pro(*args, **kwargs):
+    print(*args, file=sys.stdout, **kwargs)
+
+def style(text, color):
+    return lib.colored.stylize(text, color)
+
+def CS(txt, clr):
+    return style(txt, clr)
+
+def ptime(when):
+    return when.strftime('%Y-%m-%d %H:%M:%S')
+
+class LPBug(): # Launchpad Bug
+    def __init__(self, bid):
+        cachedir = "/tmp/.launchpadlib/cache/"
+        self.launchpad = Launchpad.login_anonymously('NVIDIA tools', 'production', cachedir)
+        self.lpbug = self.launchpad.bugs[bid]
+        self._description = None
+
+    @property
+    def description(self):
+        if self._description is None:
+            self._description = self.lpbug.description
+        return self._description
+
+class SrcPackage():
+    def __init__(self, team_name, ppa_name, series_codename, source_name, source_version):
+        self.lp_source_info = None
+        self.lp_package_source = None
+        self.key = None
+        self.build_info = None
+        cachedir = "/tmp/.launchpadlib/cache/"
+        launchpad = Launchpad.login_anonymously('NVIDIA tools', 'production', cachedir)
+        team = launchpad.people[team_name]
+        ppa = team.getPPAByName(name=ppa_name)
+
+        ubuntu = launchpad.distributions('ubuntu')
+        lp_series = ubuntu.getSeries(name_or_version=series_codename)
+        psrc = ppa.getPublishedSources(distro_series=lp_series, source_name=source_name, exact_match=True, order_by_date=True)
+        for p in psrc:
+            fd = urlopen(p.self_link)
+            sourceinfo = json.load(fd)
+
+            # Add some plain text fields for some info
+            sourceinfo['creator'] = sourceinfo['package_creator_link'].split('/')[-1].strip('~')
+            sourceinfo['signer'] = sourceinfo['package_signer_link'].split('/')[-1].strip('~')
+            sourceinfo['distribution'] = p.distro_series_link.split('/')[-1]
+
+            key = p.source_package_name + ':' + p.source_package_version
+
+            if sourceinfo['source_package_version'] == source_version:
+                self.lp_package_source = p
+                self.key = key
+                self.build_info = {}
+                self.lp_source_info = sourceinfo
+                break
+
+        self.build_data()
+
+    def build_data(self):
+        builds = self.lp_package_source.getBuilds()
+        # pro(self.lp_source_info['source_package_name'])
+        for build in builds:
+            duration = build.datebuilt - build.datecreated
+            # pro(f'    arch: {build.arch_tag}  {build.pocket}  {ptime(build.datecreated)}  {ptime(build.date_first_dispatched)}  {ptime(build.datebuilt)}  {duration}')
+
+            # info = [build.arch_tag, self.key]
+            # self.build_info['created'][ptime(build.datecreated)] = info
+            # self.build_info['built'][ptime(build.datebuilt)] = info
+            # self.build_info['dispatched'][ptime(build.date_first_dispatched)] = info
+
+            self.build_info.setdefault(self.lp_source_info['source_package_name'], {})
+            self.build_info[self.lp_source_info['source_package_name']][build.arch_tag] = {
+                'arch': build.arch_tag,
+                'created': build.datecreated,
+                'built'  : build.datebuilt,
+                'dispatched' : build.date_first_dispatched,
+                'duration'   : str(duration).split('.', 1)[0],
+            }
+
+class KTB(LPBug): # Kernel Tracking Bug
+    def __init__(self, bid):
+        super().__init__(bid)
+        self._swm_properties = None
+
+    @property
+    def id(self):
+        return self.lpbug.id
+
+    @property
+    def title(self):
+        return self.lpbug.title
+
+    @property
+    def owner(self):
+        return self.lpbug.owner
+
+    @property
+    def swm_properties(self):
+        if self._swm_properties is None:
+            try:
+                _, props = self.description.split('-- swm properties --', 1)
+                self._swm_properties = yaml.safe_load(props)
+            except ValueError:
+                pass
+        return self._swm_properties
+
+    @property
+    def packages_and_versions(self):
+        pv = {}
+        for pkg in self.swm_properties['packages']:
+            try:
+                pv[self.swm_properties['packages'][pkg]] = self.swm_properties['versions'][pkg]
+            except KeyError:
+                pass
+        return pv
+
+class BuildInfo():
+    def __init__(self):
+        self.info = {}
+        self.row1 = ''
+        self.row2 = ''
+
+        with open('config.yaml', 'r') as f:
+            cfg = yaml.safe_load(f.read())
+        self.clr_title             = lib.colored.fg(cfg['colors']['title'])
+        self.clr_delta             = lib.colored.fg(cfg['colors']['delta'])
+        self.clr_exceeds_threshold = lib.colored.fg(cfg['colors']['exceeds_threshold']) + lib.colored.attr('bold')
+        self.clr_default           = lib.colored.fg(cfg['colors']['default'])
+        self.clr_series            = lib.colored.fg(cfg['colors']['series']) + lib.colored.attr('bold')
+        self.clr_package           = lib.colored.fg(cfg['colors']['package'])
+        self.clr_bg_odd_rows       = lib.colored.bg(cfg['colors']['bg_odd_rows'])
+        self.clr_bg_even_rows      = lib.colored.bg(cfg['colors']['bg_even_rows'])
+        self.clr_skew              = lib.colored.fg(cfg['colors']['skew'])
+
+    def h1x(self, text, width=42, align='<'):
+        fmt = '{:' + align + str(width) + '}'
+        self.row1 += style(fmt.format(text),      self.clr_title)
+        self.row2 += style(fmt.format('-' * (width - 4)),  self.clr_title)
+
+    def h1_42(self, text):
+        self.row1 += style('{:<42s}'.format(text),      self.clr_title)
+        self.row2 += style('{:<42s}'.format('-' * 42),  self.clr_title)
+
+    def h2_42(self, text):
+        self.row1 += style('{:>42s}'.format(text),      self.clr_title)
+        self.row2 += style('{:>42s}'.format('-' * 38),  self.clr_title)
+
+    def h1(self, text):
+        self.row1 += style('{:<42s}'.format(text),      self.clr_title)
+        self.row2 += style('{:<42s}'.format('-' * 42),  self.clr_title)
+
+    def h2(self, text):
+        self.row1 += style('{:>42s}'.format(text),      self.clr_title)
+        self.row2 += style('{:>42s}'.format('-' * 38),  self.clr_title)
+
+    def report(self, bid):
+        ktb = KTB(bid)
+        pv = ktb.packages_and_versions
+        src = None
+        for pkg_name in pv:
+            # pkg_name = 'linux-nvidia-6.8'
+            src = SrcPackage('canonical-kernel-team', 'nvidia', 'jammy', pkg_name, pv[pkg_name])
+            bi = src.build_info
+
+            # Build a master build infromation dictionary.
+            #
+            for pkg in bi:
+                self.info.setdefault(pkg, {})
+                for arch in bi[pkg]:
+                    self.info[pkg].setdefault(arch, {})
+                    for k in bi[pkg][arch]:
+                        self.info[pkg][arch][k] = bi[pkg][arch][k]
+        # prey(self.info)
+
+        pro(" ")
+        pro("%s: %s" % (ktb.id, ktb.title))
+
+        pro("Owner: %s" % ("None" if ktb.owner is None else ktb.owner.display_name))
+        pro(" ")
+
+        self.row1 = '    '
+        self.row2 = '    '
+        self.h1x('Component', width=42)
+        self.h1x('Arch', width=11)
+        self.h1x('Created', width=25)
+        self.h1x('Dispatched', width=25)
+        self.h1x('Built', width=25)
+        self.h1x('Duration', width=14)
+
+        pro(self.row1)
+        pro(self.row2)
+
+        first_create = None
+        last_built   = None
+        row_odd = True
+        for pkg in sorted(self.info):
+            if row_odd:
+                COLOR_BG = self.clr_bg_odd_rows
+                row_odd = False
+            o = style(f'    {pkg:42}', self.clr_default + COLOR_BG)
+            for arch in self.info[pkg]:
+                rec = self.info[pkg][arch]
+                o += style(f'{arch:11}', self.clr_default + COLOR_BG)
+
+                created = ptime(rec['created'])
+                if first_create is None:
+                    first_create = rec['created']
+                if first_create > rec['created']:
+                    first_create = rec['created']
+                o += style(f'{created:<25}', self.clr_default + COLOR_BG)
+
+                dispatched = ptime(rec['dispatched'])
+                o += style(f'{dispatched:<25}', self.clr_default + COLOR_BG)
+
+                built = ptime(rec['built'])
+
+                if last_built is None:
+                    last_built = rec['built']
+                if last_built < rec['built']:
+                    last_built = rec['built']
+                o += style(f'{built:<25}', self.clr_default + COLOR_BG)
+
+                duration = str(rec['duration']).split('.', 1)[0]
+                o += style(f'{duration:>10}', self.clr_default + COLOR_BG)
+
+                pro(o)
+                if row_odd:
+                    COLOR_BG = self.clr_bg_odd_rows
+                    row_odd = False
+                else:
+                    COLOR_BG = self.clr_bg_even_rows
+                    row_odd = True
+
+                o = '    '
+                o += style(f'{" ":42}', self.clr_default + COLOR_BG)
+
+        pro('')
+        pro(f'    first create: {ptime(first_create)}    last built: {ptime(last_built)}   total time: {str(last_built - first_create).split(".", 1)[0]}')
+
+
+if __name__ == '__main__':
+    # Command line argument setup and initial processing
+    #
+    app_description = '''
+The kernel tracking bug is specified on the command line. Build information about the kernel components associated with the tracking bug is printed out.
+    '''
+    app_epilog = '''
+examples:
+    ./ppa-report 2065886
+    '''
+    bugs_help = 'A list of the Launchpad bug ids that are to to have their build information displayed and analyzed.'
+    parser = ArgumentParser(description=app_description, epilog=app_epilog, formatter_class=RawDescriptionHelpFormatter)
+    parser.add_argument('bugs',  metavar='BUGS', nargs="*",                  default=None, help=bugs_help)
+    args = parser.parse_args()
+
+    for bid in args.bugs:
+        app = BuildInfo()
+        app.report(bid)
+# vi:set ts=4 sw=4 expandtab:
