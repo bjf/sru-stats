@@ -12,6 +12,12 @@ import lib.colored
 def pro(*args, **kwargs):
     print(*args, file=sys.stdout, **kwargs)
 
+def pre(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
+
+def prey(d):
+    pre(yaml.dump(d, default_flow_style=False, indent=4, explicit_start=True))
+
 def style(text, color):
     return lib.colored.stylize(text, color)
 
@@ -33,61 +39,6 @@ class LPBug(): # Launchpad Bug
         if self._description is None:
             self._description = self.lpbug.description
         return self._description
-
-class SrcPackage():
-    def __init__(self, team_name, ppa_name, series_codename, source_name, source_version):
-        self.lp_source_info = None
-        self.lp_package_source = None
-        self.key = None
-        self.build_info = None
-        cachedir = "/tmp/.launchpadlib/cache/"
-        launchpad = Launchpad.login_anonymously('NVIDIA tools', 'production', cachedir)
-        team = launchpad.people[team_name]
-        ppa = team.getPPAByName(name=ppa_name)
-
-        ubuntu = launchpad.distributions('ubuntu')
-        lp_series = ubuntu.getSeries(name_or_version=series_codename)
-        psrc = ppa.getPublishedSources(distro_series=lp_series, source_name=source_name, exact_match=True, order_by_date=True)
-        for p in psrc:
-            fd = urlopen(p.self_link)
-            sourceinfo = json.load(fd)
-
-            # Add some plain text fields for some info
-            sourceinfo['creator'] = sourceinfo['package_creator_link'].split('/')[-1].strip('~')
-            sourceinfo['signer'] = sourceinfo['package_signer_link'].split('/')[-1].strip('~')
-            sourceinfo['distribution'] = p.distro_series_link.split('/')[-1]
-
-            key = p.source_package_name + ':' + p.source_package_version
-
-            if sourceinfo['source_package_version'] == source_version:
-                self.lp_package_source = p
-                self.key = key
-                self.build_info = {}
-                self.lp_source_info = sourceinfo
-                break
-
-        self.build_data()
-
-    def build_data(self):
-        builds = self.lp_package_source.getBuilds()
-        # pro(self.lp_source_info['source_package_name'])
-        for build in builds:
-            duration = build.datebuilt - build.datecreated
-            # pro(f'    arch: {build.arch_tag}  {build.pocket}  {ptime(build.datecreated)}  {ptime(build.date_first_dispatched)}  {ptime(build.datebuilt)}  {duration}')
-
-            # info = [build.arch_tag, self.key]
-            # self.build_info['created'][ptime(build.datecreated)] = info
-            # self.build_info['built'][ptime(build.datebuilt)] = info
-            # self.build_info['dispatched'][ptime(build.date_first_dispatched)] = info
-
-            self.build_info.setdefault(self.lp_source_info['source_package_name'], {})
-            self.build_info[self.lp_source_info['source_package_name']][build.arch_tag] = {
-                'arch': build.arch_tag,
-                'created': build.datecreated,
-                'built'  : build.datebuilt,
-                'dispatched' : build.date_first_dispatched,
-                'duration'   : str(duration).split('.', 1)[0],
-            }
 
 class KTB(LPBug): # Kernel Tracking Bug
     def __init__(self, bid):
@@ -119,12 +70,72 @@ class KTB(LPBug): # Kernel Tracking Bug
     @property
     def packages_and_versions(self):
         pv = {}
+        if False:
+            for pkg in self.swm_properties['packages']:
+                try:
+                    pv[self.swm_properties['packages'][pkg]] = self.swm_properties['versions'][pkg]
+                except KeyError:
+                    pass
         for pkg in self.swm_properties['packages']:
-            try:
-                pv[self.swm_properties['packages'][pkg]] = self.swm_properties['versions'][pkg]
-            except KeyError:
-                pass
+            pv[self.swm_properties['packages'][pkg]] = '0.0'
         return pv
+
+class SrcPackage():
+    def __init__(self, team_name, ppa_name, series_codename, source_name, source_version):
+        self.lp_source_info = None
+        self.lp_package_source = None
+        self.key = None
+        self.build_info = None
+        cachedir = "/tmp/.launchpadlib/cache/"
+        launchpad = Launchpad.login_anonymously('NVIDIA tools', 'production', cachedir)
+        team = launchpad.people[team_name]
+        ppa = team.getPPAByName(name=ppa_name)
+
+        ubuntu = launchpad.distributions('ubuntu')
+        lp_series = ubuntu.getSeries(name_or_version=series_codename)
+        psrc = ppa.getPublishedSources(distro_series=lp_series, source_name=source_name, exact_match=True, order_by_date=True)
+        for p in psrc:
+            fd = urlopen(p.self_link)
+            sourceinfo = json.load(fd)
+
+            # Add some plain text fields for some info
+            sourceinfo['creator'] = sourceinfo['package_creator_link'].split('/')[-1].strip('~')
+            sourceinfo['signer'] = sourceinfo['package_signer_link'].split('/')[-1].strip('~')
+            sourceinfo['distribution'] = p.distro_series_link.split('/')[-1]
+
+            key = p.source_package_name + ':' + p.source_package_version
+
+            self.lp_package_source = p
+            self.key = key
+            self.build_info = {}
+            self.lp_source_info = sourceinfo
+            self.build_data()
+            break # The latest one is the right one?
+            if False:
+                if sourceinfo['source_package_version'] == source_version:
+                    self.lp_package_source = p
+                    self.key = key
+                    self.build_info = {}
+                    self.lp_source_info = sourceinfo
+                    break
+
+    def build_data(self):
+        builds = self.lp_package_source.getBuilds()
+        for build in builds:
+            duration = build.datebuilt - build.datecreated
+
+            self.build_info.setdefault(self.lp_source_info['source_package_name'], {})
+            self.build_info[self.lp_source_info['source_package_name']][build.arch_tag] = {
+                'arch': build.arch_tag,
+                'created': build.datecreated,
+                'built'  : build.datebuilt,
+                'dispatched' : build.date_first_dispatched,
+                'duration'   : str(duration).split('.', 1)[0],
+            }
+
+    @property
+    def valid(self):
+        return self.lp_package_source is not None
 
 class BuildInfo():
     def __init__(self):
@@ -167,11 +178,16 @@ class BuildInfo():
 
     def report(self, bid):
         ktb = KTB(bid)
+        # props = ktb.swm_properties
+        # prey(props)
+        # return
+
         pv = ktb.packages_and_versions
         src = None
         for pkg_name in pv:
             # pkg_name = 'linux-nvidia-6.8'
             src = SrcPackage('canonical-kernel-team', 'nvidia', 'jammy', pkg_name, pv[pkg_name])
+            if not src.valid: continue
             bi = src.build_info
 
             # Build a master build infromation dictionary.
