@@ -9,6 +9,7 @@ import json
 import yaml
 import lib.colored
 from lib.lp                             import KTB
+from lazr.restfulclient                 import errors
 
 def pro(*args, **kwargs):
     print(*args, file=sys.stdout, **kwargs)
@@ -28,6 +29,9 @@ def CS(txt, clr):
 def ptime(when):
     return when.strftime('%Y-%m-%d %H:%M:%S')
 
+class LaunchpadTeamNameError(Exception):
+    pass
+
 class SrcPackage():
     def __init__(self, team_name, ppa_name, series_codename, source_name, source_version):
         self.lp_source_info = None
@@ -36,6 +40,8 @@ class SrcPackage():
         self.build_info = None
         cachedir = "/tmp/.launchpadlib/cache/"
         launchpad = Launchpad.login_anonymously('NVIDIA tools', 'production', cachedir)
+        if 'esm' in team_name:
+            raise LaunchpadTeamNameError(team_name)
         team = launchpad.people[team_name]
         ppa = team.getPPAByName(name=ppa_name)
 
@@ -234,5 +240,8 @@ examples:
 
     for bid in args.bugs:
         app = BuildInfo()
-        app.report(bid)
+        try:
+            app.report(bid)
+        except LaunchpadTeamNameError as e:
+            pre(f'  ** Error: This kernel uses a build ppa ({e.args[0]}) which can not be accessed.')
 # vi:set ts=4 sw=4 expandtab:
