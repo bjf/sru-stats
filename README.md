@@ -8,6 +8,11 @@ This project refers to the Ubuntu Kernel SRU Cycle. The idea behind the tools in
 The kernel tracking bug is specified on the command line. The bug's history is pulled from LP and listed along with annotations about the beginning and end of different stages in the process and how long that state took to finish.
 </div>
 
+### lpbug-buildinfo
+<div style="margin-left: 40px;">
+Display the build times for the different kernel set components.
+</div>
+
 ### db-update
 <div style="margin-left: 40px;">
 Gathers data from tracking bugs and put it into a local database. That database can then be interigated by using the <bold>stats</bold> utility.
