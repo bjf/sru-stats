@@ -8,6 +8,7 @@ from urllib.request                     import urlopen
 import json
 import yaml
 import lib.colored
+from lib.lp                             import KTB
 
 def pro(*args, **kwargs):
     print(*args, file=sys.stdout, **kwargs)
@@ -26,59 +27,6 @@ def CS(txt, clr):
 
 def ptime(when):
     return when.strftime('%Y-%m-%d %H:%M:%S')
-
-class LPBug(): # Launchpad Bug
-    def __init__(self, bid):
-        cachedir = "/tmp/.launchpadlib/cache/"
-        self.launchpad = Launchpad.login_anonymously('NVIDIA tools', 'production', cachedir)
-        self.lpbug = self.launchpad.bugs[bid]
-        self._description = None
-
-    @property
-    def description(self):
-        if self._description is None:
-            self._description = self.lpbug.description
-        return self._description
-
-class KTB(LPBug): # Kernel Tracking Bug
-    def __init__(self, bid):
-        super().__init__(bid)
-        self._swm_properties = None
-
-    @property
-    def id(self):
-        return self.lpbug.id
-
-    @property
-    def title(self):
-        return self.lpbug.title
-
-    @property
-    def owner(self):
-        return self.lpbug.owner
-
-    @property
-    def swm_properties(self):
-        if self._swm_properties is None:
-            try:
-                _, props = self.description.split('-- swm properties --', 1)
-                self._swm_properties = yaml.safe_load(props)
-            except ValueError:
-                pass
-        return self._swm_properties
-
-    @property
-    def packages_and_versions(self):
-        pv = {}
-        if False:
-            for pkg in self.swm_properties['packages']:
-                try:
-                    pv[self.swm_properties['packages'][pkg]] = self.swm_properties['versions'][pkg]
-                except KeyError:
-                    pass
-        for pkg in self.swm_properties['packages']:
-            pv[self.swm_properties['packages'][pkg]] = '0.0'
-        return pv
 
 class SrcPackage():
     def __init__(self, team_name, ppa_name, series_codename, source_name, source_version):
@@ -178,27 +126,6 @@ class BuildInfo():
 
     def report(self, bid):
         ktb = KTB(bid)
-        # props = ktb.swm_properties
-        # prey(props)
-        # return
-
-        pv = ktb.packages_and_versions
-        src = None
-        for pkg_name in pv:
-            # pkg_name = 'linux-nvidia-6.8'
-            src = SrcPackage('canonical-kernel-team', 'nvidia', 'jammy', pkg_name, pv[pkg_name])
-            if not src.valid: continue
-            bi = src.build_info
-
-            # Build a master build infromation dictionary.
-            #
-            for pkg in bi:
-                self.info.setdefault(pkg, {})
-                for arch in bi[pkg]:
-                    self.info[pkg].setdefault(arch, {})
-                    for k in bi[pkg][arch]:
-                        self.info[pkg][arch][k] = bi[pkg][arch][k]
-        # prey(self.info)
 
         pro(" ")
         pro("%s: %s" % (ktb.id, ktb.title))
@@ -206,9 +133,32 @@ class BuildInfo():
         pro("Owner: %s" % ("None" if ktb.owner is None else ktb.owner.display_name))
         pro(" ")
 
+        if ktb.series is None:
+            # If no series then this TB isn't being cranked yet
+            return
+
+        pv = ktb.packages_and_versions
+        src = None
+        for pkg_name in pv:
+            for ppa in ktb.build_ppas:
+                src = SrcPackage(ppa[0], ppa[1], ktb.series, pkg_name, pv[pkg_name])
+                if not src.valid: continue
+                bi = src.build_info
+
+                # Build a master build infromation dictionary.
+                #
+                for pkg in bi:
+                    self.info.setdefault(pkg, {})
+                    for arch in bi[pkg]:
+                        self.info[pkg].setdefault(arch, {})
+                        for k in bi[pkg][arch]:
+                            self.info[pkg][arch][k] = bi[pkg][arch][k]
+                break # if this ppa worked, we don't need to try another
+        # prey(self.info)
+
         self.row1 = '    '
         self.row2 = '    '
-        self.h1x('Component', width=42)
+        self.h1x('Component', width=48)
         self.h1x('Arch', width=11)
         self.h1x('Created', width=25)
         self.h1x('Dispatched', width=25)
@@ -225,7 +175,7 @@ class BuildInfo():
             if row_odd:
                 COLOR_BG = self.clr_bg_odd_rows
                 row_odd = False
-            o = style(f'    {pkg:42}', self.clr_default + COLOR_BG)
+            o = style(f'    {pkg:48}', self.clr_default + COLOR_BG)
             for arch in self.info[pkg]:
                 rec = self.info[pkg][arch]
                 o += style(f'{arch:11}', self.clr_default + COLOR_BG)
@@ -260,10 +210,11 @@ class BuildInfo():
                     row_odd = True
 
                 o = '    '
-                o += style(f'{" ":42}', self.clr_default + COLOR_BG)
+                o += style(f'{" ":48}', self.clr_default + COLOR_BG)
 
-        pro('')
-        pro(f'    first create: {ptime(first_create)}    last built: {ptime(last_built)}   total time: {str(last_built - first_create).split(".", 1)[0]}')
+        if first_create is not None and last_built is not None:
+            pro('')
+            pro(f'    first create: {ptime(first_create)}    last built: {ptime(last_built)}   total time: {str(last_built - first_create).split(".", 1)[0]}')
 
 
 if __name__ == '__main__':
