@@ -21,7 +21,7 @@ take with the goal of hopfully, reducing the length of each of these stages.
 
 ## Tools
 
-### lpbug-history
+### ktb-history
 
 The kernel tracking bug is specified on the command line. The bug's history is pulled from LP and
 listed along with annotations about the beginning and end of different stages in the process and
@@ -31,7 +31,7 @@ how long that state took to finish.
 
 ---
 
-### lpbug-buildinfo
+### ktb-buildinfo
 Display the build times for the different kernel set components.
 
 ![lpbug-buildinfo example](images/lpbug-buildinfo.png)
