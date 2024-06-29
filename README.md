@@ -23,16 +23,22 @@ take with the goal of hopfully, reducing the length of each of these stages.
 
 ### ktb-history
 
-The kernel tracking bug is specified on the command line. The bug's history is pulled from LP and
-listed along with annotations about the beginning and end of different stages in the process and
-how long that state took to finish.
+The KTB's history is pulled from Launchpad, changes to the description are discarded and the focus is
+on task status changes. Annotations are added to the output pointing out the beginning and ending of
+major stages in the kernel packages progress. The length of those major stages is also provided.
 
 ![lpbug-history example](images/lpbug-history.png)
 
 ---
 
 ### ktb-buildinfo
-Display the build times for the different kernel set components.
+
+Using the information in a specific KTB the kernel set components associated with a specific kernel update
+are identified and the build information for those components is pulled from Launchpad. The original goal
+was to get the exact build times for each component which can be displayed via Launchpad's web interface.
+However, I've not been able to do that, instead the information I am able to extract is equally important
+as it is showing the total times it takes to build components from when they are submitted until the component
+is built. This includes DEPWAIT times I believe.
 
 ![lpbug-buildinfo example](images/lpbug-buildinfo.png)
 
