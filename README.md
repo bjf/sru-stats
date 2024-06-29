@@ -27,7 +27,7 @@ The KTB's history is pulled from Launchpad, changes to the description are disca
 on task status changes. Annotations are added to the output pointing out the beginning and ending of
 major stages in the kernel packages progress. The length of those major stages is also provided.
 
-![lpbug-history example](images/lpbug-history.png)
+![ktb-history example](images/lpbug-history.png)
 
 ---
 
@@ -40,7 +40,7 @@ However, I've not been able to do that, instead the information I am able to ext
 as it is showing the total times it takes to build components from when they are submitted until the component
 is built. This includes DEPWAIT times I believe.
 
-![lpbug-buildinfo example](images/lpbug-buildinfo.png)
+![ktb-buildinfo example](images/ktb-buildinfo.png)
 
 ---
 
