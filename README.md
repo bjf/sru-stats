@@ -45,7 +45,12 @@ is built. This includes DEPWAIT times I believe.
 ---
 
 ### db-update
-Gathers data from tracking bugs and put it into a local database. That database can then be interigated by using the <bold>stats</bold> utility.
+
+
+Gathers data from tracking bugs and put it into a local database. That database can then be interigated by
+using the <bold>stats</bold> utility. This tool can be used to perform a number of operations on the database.
+It can be handy to have a database of current and old KTB data so that statistics can be easily queried for
+and displayed. Statistics about different kernels of different SRU cycles can be compared.
 
 ---
 
@@ -55,7 +60,9 @@ Prints out a list of all of the sru cycles the database knows about.
 ---
 
 ### stats
-Displays various statistics about the various kernels whose data has been captured and stored in the local database using <bold>db-update</bold>.
+
+Displays various statistics about the one or more kernels whose data has been captured and stored in the local
+database using <bold>db-update</bold>.
 
 ![stats example 1](images/stats_small.png)
 
