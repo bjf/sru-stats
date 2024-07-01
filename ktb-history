@@ -215,7 +215,7 @@ class LPBugHistory():
                         o += anno_d(duration)
                         o += anno_r(clr_default, ' ')
 
-                    case 'sru-review:Triaged':
+                    case ('sru-review:Triaged' | 'sru-review:Confirmed'):
                         sru_review_ready = timestamp
                         o += anno_r(clr_sru, 'sru review ready  ')
                         o += anno_d(' ')
