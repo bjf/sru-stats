@@ -179,6 +179,7 @@ class Stats():
                     continue
                 pro(CS(series, self.clr_series))
                 for stats in BugHelper().stats_in_cycle_and_series(cycle, series):
+                    oc = self.clr_delta
                     if args.packages is not None and stats.package not in args.packages:
                         continue
                     if row_odd:
@@ -198,13 +199,18 @@ class Stats():
                     if args.crank:
                         # Crank Time
                         #
-                        val, oc, diff = self.delta_threshold(bug.tasks['prepare-package'].date_fix_released, bug.tasks['prepare-package'].date_in_progress, self.th_crank)
+                        # pro(f'prepare-package.date_in_progress: {str(date_of_timestamp(bug.tasks["prepare-package"].date_in_progress))}')
+                        # pro(f'prepare-package.date_fix_released: {str(date_of_timestamp(bug.tasks["prepare-package"].date_fix_released))}')
+                        # pro(f'duration: {duration(bug.tasks["prepare-package"].date_fix_released, bug.tasks["prepare-package"].date_in_progress)[0]}')
+                        # val, oc, diff = self.delta_threshold(bug.tasks['prepare-package'].date_fix_released, bug.tasks['prepare-package'].date_in_progress, self.th_crank)
+                        val = duration(bug.tasks["prepare-package"].date_fix_released, bug.tasks["prepare-package"].date_in_progress)[0]
                         o += style(f'{val:>22s}', oc + COLOR_BG)
 
                     if args.build:
                         # Build Time
                         try:
-                            val, oc, diff = self.delta_threshold(bug.tasks['boot-testing'].date_triaged, bug.tasks['prepare-package'].date_fix_committed, self.th_build)
+                            # val, oc, diff = self.delta_threshold(bug.tasks['boot-testing'].date_triaged, bug.tasks['prepare-package'].date_fix_committed, self.th_build)
+                            val = duration(bug.tasks['boot-testing'].date_triaged, bug.tasks['prepare-package'].date_fix_committed)[0]
                         except BadDelta:
                             # How this happens is that someone resets the prepare-package status to New and then has SWM do it's thing. This happens after promote-to-proposed
                             # has been set to to something after confirmed and so there is skew in the delta.
@@ -216,26 +222,31 @@ class Stats():
                     if args.bt:
                         # Boot Testing
                         #
-                        val, oc, diff = self.delta_threshold(bug.tasks['boot-testing'].date_fix_released, bug.tasks['boot-testing'].date_triaged, self.th_bt)
+                        # val, oc, diff = self.delta_threshold(bug.tasks['boot-testing'].date_fix_released, bug.tasks['boot-testing'].date_triaged, self.th_bt)
+                        val = duration(bug.tasks['boot-testing'].date_fix_released, bug.tasks['boot-testing'].date_triaged)[0]
+                        o += style(f'{val:>22s}', oc + COLOR_BG)
+
+                    if args.sru:
+                        # val, oc, diff = self.delta_threshold(bug.tasks['sru-review'].date_fix_released, bug.tasks['sru-review'].date_triaged, self.th_sru)
+                        val = duration(bug.tasks['sru-review'].date_fix_released, bug.tasks['sru-review'].date_confirmed)[0]
+                        o += style(f'{val:>22s}', oc + COLOR_BG)
+
+                    if args.new:
+                        # val, oc, diff = self.delta_threshold(bug.tasks['new-review'].date_fix_released, bug.tasks['new-review'].date_triaged, self.th_new)
+                        val = duration(bug.tasks['new-review'].date_fix_released, bug.tasks['new-review'].date_confirmed)[0]
                         o += style(f'{val:>22s}', oc + COLOR_BG)
 
                     if args.proposed:
                         # Time until -proposed
                         #
-                        val, oc, diff = self.delta_threshold(bug.tasks['promote-to-proposed'].date_fix_released, bug.tasks['prepare-package'].date_in_progress, self.th_proposed)
-                        o += style(f'{val:>22s}', oc + COLOR_BG)
-
-                    if args.sru:
-                        val, oc, diff = self.delta_threshold(bug.tasks['sru-review'].date_fix_released, bug.tasks['sru-review'].date_triaged, self.th_sru)
-                        o += style(f'{val:>22s}', oc + COLOR_BG)
-
-                    if args.new:
-                        val, oc, diff = self.delta_threshold(bug.tasks['new-review'].date_fix_released, bug.tasks['new-review'].date_triaged, self.th_new)
+                        # val, oc, diff = self.delta_threshold(bug.tasks['promote-to-proposed'].date_fix_released, bug.tasks['prepare-package'].date_in_progress, self.th_proposed)
+                        val = duration(bug.tasks['promote-to-proposed'].date_fix_released, bug.tasks['prepare-package'].date_in_progress)[0]
                         o += style(f'{val:>22s}', oc + COLOR_BG)
 
                     if args.rt:
                         try:
-                            val, oc, diff = self.delta_threshold(bug.tasks['regression-testing'].date_fix_released, bug.tasks['regression-testing'].date_incomplete, self.th_rt)
+                            # val, oc, diff = self.delta_threshold(bug.tasks['regression-testing'].date_fix_released, bug.tasks['regression-testing'].date_incomplete, self.th_rt)
+                            val = duration(bug.tasks['regression-testing'].date_fix_released, bug.tasks['regression-testing'].date_incomplete)[0]
                         except BadDelta:
                             # How this happens is that someone resets the prepare-package status to New and then has SWM do it's thing. This happens after promote-to-proposed
                             # has been set to to something after confirmed and so there is skew in the delta.
@@ -249,13 +260,15 @@ class Stats():
                     #     o += style(f'{val:>22s}', oc + COLOR_BG)
 
                     if args.at:
-                        val, oc, diff = self.delta_threshold(bug.tasks['automated-testing'].date_fix_released, bug.tasks['automated-testing'].date_incomplete, self.th_rt)
+                        # val, oc, diff = self.delta_threshold(bug.tasks['automated-testing'].date_fix_released, bug.tasks['automated-testing'].date_incomplete, self.th_rt)
+                        val = duration(bug.tasks['automated-testing'].date_fix_released, bug.tasks['automated-testing'].date_incomplete)[0]
                         o += style(f'{val:>22s}', oc + COLOR_BG)
 
                     if args.updates:
                         # Time until -updates
                         #
-                        val, oc, diff = self.delta_threshold(bug.tasks['promote-to-updates'].date_fix_released, bug.tasks['prepare-package'].date_in_progress, self.th_updates)
+                        # val, oc, diff = self.delta_threshold(bug.tasks['promote-to-updates'].date_fix_released, bug.tasks['prepare-package'].date_in_progress, self.th_updates)
+                        val = duration(bug.tasks['promote-to-updates'].date_fix_released, bug.tasks['prepare-package'].date_in_progress)[0]
                         o += style(f'{val:>22s}', oc + COLOR_BG)
 
                     pro(o)
