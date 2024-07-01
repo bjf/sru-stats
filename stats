@@ -328,6 +328,7 @@ Examples:
     parser.add_argument('--at', action='store_true', default=False, help='Show how long to perform ADT testing.')
     parser.add_argument('--sru', action='store_true', default=False, help='Show how long it takes for an sru review.')
     parser.add_argument('--new', action='store_true', default=False, help='Show how long it takes for a new package review.')
+    parser.add_argument('--all', action='store_true', default=False, help='Show duarations for all stages.')
 
     args = parser.parse_args()
     try:
@@ -351,4 +352,14 @@ Examples:
         args.bt    = True
     if args.updates:
         args.proposed = True
+    if args.all:
+        args.crank = True
+        args.build = True
+        args.new   = True
+        args.sru   = True
+        args.bt    = True
+        args.proposed = True
+        args.rt = True
+        args.at = True
+        args.updates = True
     Stats().render(args)
