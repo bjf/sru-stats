@@ -3,13 +3,11 @@
 
 import sys
 from argparse                           import ArgumentParser, RawDescriptionHelpFormatter
-from launchpadlib.launchpad             import Launchpad
 from urllib.request                     import urlopen
 import json
 import yaml
 import lib.colored
-from lib.lp                             import KTB
-from lazr.restfulclient                 import errors
+from lib.lp                             import KTB, LP
 
 def pro(*args, **kwargs):
     print(*args, file=sys.stdout, **kwargs)
@@ -38,8 +36,7 @@ class SrcPackage():
         self.lp_package_source = None
         self.key = None
         self.build_info = None
-        cachedir = "/tmp/.launchpadlib/cache/"
-        launchpad = Launchpad.login_anonymously('NVIDIA tools', 'production', cachedir)
+        launchpad = LP().launchpad
         if 'esm' in team_name:
             raise LaunchpadTeamNameError(team_name)
         team = launchpad.people[team_name]
@@ -169,7 +166,7 @@ class BuildInfo():
         self.h1x('Created', width=25)
         self.h1x('Dispatched', width=25)
         self.h1x('Built', width=25)
-        self.h1x('Duration', width=14)
+        self.h1x('Duration', width=24)
 
         pro(self.row1)
         pro(self.row2)
@@ -205,7 +202,7 @@ class BuildInfo():
                 o += style(f'{built:<25}', self.clr_default + COLOR_BG)
 
                 duration = str(rec['duration']).split('.', 1)[0]
-                o += style(f'{duration:>10}', self.clr_default + COLOR_BG)
+                o += style(f'{duration:>20}', self.clr_default + COLOR_BG)
 
                 pro(o)
                 if row_odd:

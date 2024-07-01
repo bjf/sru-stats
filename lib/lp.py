@@ -1,12 +1,31 @@
 from launchpadlib.launchpad             import Launchpad
 from ktl.kernel_series                  import KernelSeries
 import yaml
+import os
+
+class LP():
+    def __init__(self):
+        client_name = 'NVIDIA tools'
+        launchpad_cachedir = os.path.join(os.path.expanduser('~'), '.cache', client_name)
+        launchpad_creddir  = os.path.join(os.path.expanduser('~'), '.config', client_name)
+        filename_parts = ['credentials', 'production']
+
+        launchpad_credentials_file = os.path.join(launchpad_creddir, '-'.join(filename_parts))
+
+        if not os.path.exists(launchpad_creddir):
+            os.makedirs(launchpad_creddir, 0o700)
+
+        self.launchpad = Launchpad.login_with(client_name,
+                                              service_root='production',
+                                              launchpadlib_dir=launchpad_cachedir,
+                                              credentials_file=launchpad_credentials_file,
+                                              version='devel')
 
 class LPBug(): # Launchpad Bug
-    def __init__(self, bid):
-        cachedir = "/tmp/.launchpadlib/cache/"
-        self.launchpad = Launchpad.login_anonymously('NVIDIA tools', 'production', cachedir)
-        self.lpbug = self.launchpad.bugs[bid]
+    def __init__(self, bid=None):
+        self.launchpad = LP().launchpad
+        if bid is not None:
+            self.lpbug = self.launchpad.bugs[bid]
         self._description = None
 
     @property
