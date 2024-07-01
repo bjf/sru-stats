@@ -282,7 +282,7 @@ Legend:
         if args.build:
             legend += 'Build        - Time from prepare-package set to Fix Committed until boot-testing set to Triaged\n'
         if args.proposed:
-            legend += '-proposed    - Time from promote-to-proposed set to In Progress until promote-to-proposed set to Fix Released\n'
+            legend += '-proposed    - Time from prepare-package set to In Progress until promote-to-proposed set to Fix Released\n'
         if args.proposed:
             legend += '-updates     - Time from promote-to-proposed set to In Progress until promote-to-proposed set to Fix Released\n'
         if args.bt:
