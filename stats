@@ -156,14 +156,14 @@ class Stats():
             self.h2('SRU Review')
         if args.new:
             self.h2('New Review')
+        if args.proposed:
+            self.h2('-proposed')
         if args.rt:
             self.h2('Regression')
         # if args.ct:
         #     self.h2('Certification')
         if args.at:
             self.h2('ADT')
-        if args.proposed:
-            self.h2('-proposed')
         if args.updates:
             self.h2('-updates')
 
