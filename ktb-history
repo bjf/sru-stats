@@ -143,7 +143,10 @@ class LPBugHistory():
                         o += anno_r(clr_default, ' ')
 
                     case 'prepare-package:Fix Released':                              # crank finished
-                        duration = '(' + self.duration(crank_start, timestamp) + ')'
+                        try:
+                            duration = '(' + self.duration(crank_start, timestamp) + ')'
+                        except NameError:
+                            duration = '(Invalid)'
                         o += anno_r(clr_crank, 'crank finished  ')
                         o += anno_d(duration)
                         o += anno_r(clr_default, ' ')
@@ -156,25 +159,37 @@ class LPBugHistory():
 
                     case 'boot-testing:Triaged':                                      # build finished & boot testing started
                         boot_testing_start = timestamp
-                        duration = '(' + self.duration(build_start, timestamp) + ')'
+                        try:
+                            duration = '(' + self.duration(build_start, timestamp) + ')'
+                        except NameError:
+                            duration = '(Invalid)'
                         o += anno_r(clr_build, 'build finished  ')
                         o += anno_d(duration)
                         o += anno_r(clr_bt, 'boot-testing started  ')
 
                     case 'boot-testing:Fix Released':                                 # boot testing finished
-                        duration = '(' + self.duration(boot_testing_start, timestamp) + ')'
+                        try:
+                            duration = '(' + self.duration(boot_testing_start, timestamp) + ')'
+                        except NameError:
+                            duration = '(Invalid)'
                         o += anno_r(clr_bt, 'boot-testing finished  ')
                         o += anno_d(duration)
                         o += anno_r(clr_default, ' ')
 
                     case 'promote-to-proposed:Fix Released':                          # -proposed
-                        duration = '(' + self.duration(crank_start, timestamp) + ')'
+                        try:
+                            duration = '(' + self.duration(crank_start, timestamp) + ')'
+                        except NameError:
+                            duration = '(Invalid)'
                         o += anno_r(clr_proposed, '-proposed promotion finished  ')
                         o += anno_d(duration)
                         o += anno_r(clr_default, ' ')
 
                     case 'promote-to-updates:Fix Released':                           # -updates
-                        duration = '(' + self.duration(crank_start, timestamp) + ')'
+                        try:
+                            duration = '(' + self.duration(crank_start, timestamp) + ')'
+                        except NameError:
+                            duration = '(Invalid)'
                         o += anno_r(clr_updates, '-updates promotion finished  ')
                         o += anno_d(duration)
                         o += anno_r(clr_default, ' ')
@@ -186,7 +201,10 @@ class LPBugHistory():
                         o += anno_r(clr_default, ' ')
 
                     case 'regression-testing:Fix Released':
-                        duration = '(' + self.duration(regression_testing_start, timestamp) + ')'
+                        try:
+                            duration = '(' + self.duration(regression_testing_start, timestamp) + ')'
+                        except NameError:
+                            duration = '(Invalid)'
                         o += anno_r(clr_testing, 'regression testing finished  ')
                         o += anno_d(duration)
                         o += anno_r(clr_default, ' ')
@@ -198,7 +216,10 @@ class LPBugHistory():
                         o += anno_r(clr_default, ' ')
 
                     case 'certification-testing:Fix Released':
-                        duration = '(' + self.duration(certification_testing_start, timestamp) + ')'
+                        try:
+                            duration = '(' + self.duration(certification_testing_start, timestamp) + ')'
+                        except NameError:
+                            duration = '(Invalid)'
                         o += anno_r(clr_testing, 'certification testing finished  ')
                         o += anno_d(duration)
                         o += anno_r(clr_default, ' ')
@@ -210,7 +231,10 @@ class LPBugHistory():
                         o += anno_r(clr_default, ' ')
 
                     case 'automated-testing:Fix Released':
-                        duration = '(' + self.duration(automated_testing_start, timestamp) + ')'
+                        try:
+                            duration = '(' + self.duration(automated_testing_start, timestamp) + ')'
+                        except NameError:
+                            duration = '(Invalid)'
                         o += anno_r(clr_testing, 'automated testing finished  ')
                         o += anno_d(duration)
                         o += anno_r(clr_default, ' ')
@@ -222,7 +246,10 @@ class LPBugHistory():
                         o += anno_r(clr_default, ' ')
 
                     case 'sru-review:Fix Released':
-                        duration = '(' + self.duration(sru_review_ready, timestamp) + ')'
+                        try:
+                            duration = '(' + self.duration(sru_review_ready, timestamp) + ')'
+                        except NameError:
+                            duration = '(Invalid)'
                         o += anno_r(clr_sru, 'sru review finished  ')
                         o += anno_d(duration)
                         o += anno_r(clr_default, ' ')
@@ -234,7 +261,10 @@ class LPBugHistory():
                         o += anno_r(clr_default, ' ')
 
                     case 'new-review:Fix Released':
-                        duration = '(' + self.duration(new_review_ready, timestamp) + ')'
+                        try:
+                            duration = '(' + self.duration(new_review_ready, timestamp) + ')'
+                        except NameError:
+                            duration = '(Invalid)'
                         o += anno_r(clr_sru, 'new review finished  ')
                         o += anno_d(duration)
                         o += anno_r(clr_default, ' ')
@@ -246,7 +276,10 @@ class LPBugHistory():
                         o += anno_r(clr_default, ' ')
 
                     case 'signing-signoff:Fix Released':
-                        duration = '(' + self.duration(signing_start, timestamp) + ')'
+                        try:
+                            duration = '(' + self.duration(signing_start, timestamp) + ')'
+                        except NameError:
+                            duration = '(Invalid)'
                         o += anno_r(clr_signing, 'signing finished  ')
                         o += anno_d(duration)
                         o += anno_r(clr_default, ' ')
