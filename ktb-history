@@ -6,6 +6,7 @@ from argparse                           import ArgumentParser, RawDescriptionHel
 from lib.launchpad                      import Launchpad
 import lib.colored
 from datetime                           import datetime
+import csv 
 
 def pro(*args, **kwargs):
     print(*args, file=sys.stdout, **kwargs)
@@ -82,6 +83,12 @@ class LPBugHistory():
         delta = datetime.strptime(after, '%Y-%m-%d %H:%M:%S') - datetime.strptime(before, '%Y-%m-%d %H:%M:%S')
         return str(delta)
 
+    def save_stats(self,bug,buildtime,boottime,srutime,newreviewtime,proposedtime,certtime,attime,rttime,updatestime):
+        data = [bug.id,bug.title,buildtime,boottime,srutime,newreviewtime,proposedtime,certtime,attime,rttime,updatestime]
+        with open('output.csv','a',newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(data)
+
     # __verbose_bug_info
     #
     def __print_bug_info(self, bug):
@@ -102,6 +109,8 @@ class LPBugHistory():
         history = bug.activity
         prev_timestamp = None
         lineno = 0
+        buildtime=boottime=srutime=newreviewtime=proposedtime=certtime=attime=rttime=updatestime = "Empty"
+
         for activity in history:
             if activity.whatchanged.endswith('status'):
                 lineno += 1
@@ -163,6 +172,7 @@ class LPBugHistory():
                             duration = '(' + self.duration(build_start, timestamp) + ')'
                         except NameError:
                             duration = '(Invalid)'
+                        buildtime = duration
                         o += anno_r(clr_build, 'build finished  ')
                         o += anno_d(duration)
                         o += anno_r(clr_bt, 'boot-testing started  ')
@@ -175,7 +185,7 @@ class LPBugHistory():
                         o += anno_r(clr_bt, 'boot-testing finished  ')
                         o += anno_d(duration)
                         o += anno_r(clr_default, ' ')
-
+                        boottime = duration
                     case 'promote-to-proposed:Fix Released':                          # -proposed
                         try:
                             duration = '(' + self.duration(crank_start, timestamp) + ')'
@@ -184,6 +194,7 @@ class LPBugHistory():
                         o += anno_r(clr_proposed, '-proposed promotion finished  ')
                         o += anno_d(duration)
                         o += anno_r(clr_default, ' ')
+                        proposedtime = duration
 
                     case 'promote-to-updates:Fix Released':                           # -updates
                         try:
@@ -193,6 +204,7 @@ class LPBugHistory():
                         o += anno_r(clr_updates, '-updates promotion finished  ')
                         o += anno_d(duration)
                         o += anno_r(clr_default, ' ')
+                        updatestime=duration
 
                     case 'regression-testing:Incomplete':
                         regression_testing_start = timestamp
@@ -208,6 +220,7 @@ class LPBugHistory():
                         o += anno_r(clr_testing, 'regression testing finished  ')
                         o += anno_d(duration)
                         o += anno_r(clr_default, ' ')
+                        rttime=duration
 
                     case 'certification-testing:Opinion':
                         certification_testing_start = timestamp
@@ -223,6 +236,7 @@ class LPBugHistory():
                         o += anno_r(clr_testing, 'certification testing finished  ')
                         o += anno_d(duration)
                         o += anno_r(clr_default, ' ')
+                        certtime=duration
 
                     case 'automated-testing:Incomplete':
                         automated_testing_start = timestamp
@@ -238,6 +252,7 @@ class LPBugHistory():
                         o += anno_r(clr_testing, 'automated testing finished  ')
                         o += anno_d(duration)
                         o += anno_r(clr_default, ' ')
+                        attime=duration
 
                     case ('sru-review:Triaged' | 'sru-review:Confirmed'):
                         sru_review_ready = timestamp
@@ -253,6 +268,7 @@ class LPBugHistory():
                         o += anno_r(clr_sru, 'sru review finished  ')
                         o += anno_d(duration)
                         o += anno_r(clr_default, ' ')
+                        srutime = duration
 
                     case 'new-review:Triaged':
                         new_review_ready = timestamp
@@ -268,6 +284,7 @@ class LPBugHistory():
                         o += anno_r(clr_sru, 'new review finished  ')
                         o += anno_d(duration)
                         o += anno_r(clr_default, ' ')
+                        newreviewtime = duration
 
                     case 'signing-signoff:Confirmed':
                         signing_start = timestamp
@@ -290,6 +307,8 @@ class LPBugHistory():
                         o += anno_r(clr_default, ' ')
 
                 pro(o)
+        self.save_stats(bug,buildtime,boottime,srutime,newreviewtime,proposedtime,certtime,attime,rttime,updatestime)
+
 
     # main
     #
