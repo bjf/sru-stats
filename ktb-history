@@ -105,6 +105,8 @@ class LPBugHistory():
         history = bug.activity
         prev_timestamp = None
         lineno = 0
+        regression_testing_start = None
+        automated_testing_start  = None
         for activity in history:
             if activity.whatchanged.endswith('status'):
                 lineno += 1
@@ -182,9 +184,12 @@ class LPBugHistory():
                         o += anno_d(duration)
                         o += anno_r(clr_default, ' ')
 
-                    case 'regression-testing:Incomplete':
+                    case 'regression-testing:Incomplete' | 'regression-testing:Triaged':
+                        if regression_testing_start is not None:
+                            o += anno_r(clr_testing, 'regression testing restarted  ')
+                        else:
+                            o += anno_r(clr_testing, 'regression testing started  ')
                         regression_testing_start = timestamp
-                        o += anno_r(clr_testing, 'regression testing started  ')
                         o += anno_d(' ')
                         o += anno_r(clr_default, ' ')
 
@@ -207,8 +212,11 @@ class LPBugHistory():
                         o += anno_r(clr_default, ' ')
 
                     case 'automated-testing:Incomplete':
+                        if automated_testing_start is not None:
+                            o += anno_r(clr_testing, 'automated testing restarted  ')
+                        else:
+                            o += anno_r(clr_testing, 'automated testing started  ')
                         automated_testing_start = timestamp
-                        o += anno_r(clr_testing, 'automated testing started  ')
                         o += anno_d(' ')
                         o += anno_r(clr_default, ' ')
 
