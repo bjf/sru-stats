@@ -42,6 +42,8 @@ class KTB(LPBug): # Kernel Tracking Bug
         self._package = None
         self._title = None
         self._build_ppas = None
+        self._tags = None
+        self._sru_cycle = None
 
     @property
     def id(self):
@@ -68,7 +70,27 @@ class KTB(LPBug): # Kernel Tracking Bug
 
     @property
     def owner(self):
-        return self.lpbug.owner
+        return "None" if self.lpbug.owner is None else self.lpbug.owner.display_name
+
+    @property
+    def date_created(self):
+        return self.lpbug.date_created
+
+    @property
+    def date_last_message(self):
+        return self.lpbug.date_last_message
+
+    @property
+    def date_last_updated(self):
+        return self.lpbug.date_last_updated
+
+    @property
+    def duplicate_of(self):
+        return self.lpbug.duplicate_of
+
+    @property
+    def activity(self):
+        return self.lpbug.activity
 
     @property
     def swm_properties(self):
@@ -106,5 +128,20 @@ class KTB(LPBug): # Kernel Tracking Bug
                 team, _, ppa = x[0].replace('ppa:', '').split('/')
                 self._build_ppas.append([team, ppa])
         return self._build_ppas
+
+    @property
+    def tags(self):
+        if self._tags is None:
+            self._tags = self.lpbug.tags
+        return self._tags
+
+    @property
+    def sru_cycle(self):
+        if self._sru_cycle is None:
+            for tag in self.tags:
+                if tag.startswith('kernel-sru-cycle-'):
+                    (self._sru_cycle, self._sru_cycle_spin) = tag.replace('kernel-sru-cycle-', '').split('-', 1)
+                    break
+        return self._sru_cycle
 
 # vi:set ts=4 sw=4 expandtab:
