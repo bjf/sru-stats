@@ -6,6 +6,7 @@ from argparse                           import ArgumentParser, RawDescriptionHel
 from lib.launchpad                      import Launchpad
 import lib.colored
 from datetime                           import datetime
+from lib.lp                             import KTB, LP
 
 def pro(*args, **kwargs):
     print(*args, file=sys.stdout, **kwargs)
@@ -89,7 +90,9 @@ class LPBugHistory():
         pro("    %s: %s" % (bug.id, bug.title))
         pro("")
 
-        pro("                 Owner: %s" % ("None" if bug.owner is None else bug.owner.display_name))
+        pro("                 Owner: %s" % (bug.owner))
+        pro("                 Cycle: %s" % (bug.sru_cycle))
+        pro('')
 
         pro("               Created: %s" % (date_to_string(bug.date_created)))
         pro("          Last Message: %s" % (date_to_string(bug.date_last_message)))
@@ -272,7 +275,8 @@ class LPBugHistory():
                 # id does not exist or if it is not visibile to you with the LP
                 # credentials you are using, an exception will be thrown.
                 #
-                self.__print_bug_info(self.lp.bugs[id])
+                ktb = KTB(id)
+                self.__print_bug_info(ktb)
 
         # Handle the user presses <ctrl-C>.
         #
