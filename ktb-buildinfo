@@ -228,7 +228,7 @@ The kernel tracking bug is specified on the command line. Build information abou
     '''
     app_epilog = '''
 examples:
-    ./ppa-report 2065886
+    ./ktb-buildinfo 2065886
     '''
     bugs_help = 'A list of the Launchpad bug ids that are to to have their build information displayed and analyzed.'
     parser = ArgumentParser(description=app_description, epilog=app_epilog, formatter_class=RawDescriptionHelpFormatter)
