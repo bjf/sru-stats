@@ -3,10 +3,10 @@
 
 import sys
 from argparse                           import ArgumentParser, RawDescriptionHelpFormatter
-from lib.launchpad                      import Launchpad
 import lib.colored
 from datetime                           import datetime
-from lib.lp                             import KTB, LP
+from neo.config                         import NeoConfig
+import yaml
 
 def pro(*args, **kwargs):
     print(*args, file=sys.stdout, **kwargs)
@@ -77,7 +77,7 @@ class LPBugHistory():
     # initialize
     #
     def initialize(self):
-        self.lp = Launchpad('lpbug-history').service
+        self.bugs_cache = NeoConfig()['tracking-bugs-cache']
 
     def duration(self, before, after):
         delta = datetime.strptime(after, '%Y-%m-%d %H:%M:%S') - datetime.strptime(before, '%Y-%m-%d %H:%M:%S')
@@ -87,33 +87,33 @@ class LPBugHistory():
     #
     def __print_bug_info(self, bug):
         pro("")
-        pro("    %s: %s" % (bug.id, bug.title))
+        pro("    %s: %s" % (bug['id'], bug['title']))
         pro("")
 
-        pro("                 Owner: %s" % (bug.owner))
-        pro("                 Cycle: %s" % (bug.sru_cycle))
+        pro("                 Owner: %s" % (bug['owner']))
+        pro("                 Cycle: %s" % (bug['cycle']))
         pro('')
 
-        pro("               Created: %s" % (date_to_string(bug.date_created)))
-        pro("          Last Message: %s" % (date_to_string(bug.date_last_message)))
-        pro("          Last Updated: %s" % (date_to_string(bug.date_last_updated)))
-        pro("             Duplicate: %s" % bug.duplicate_of)
+        pro("               Created: %s" % (date_to_string(bug["tasks"]["kernel-sru-workflow"]["date_created"])))
+        pro("          Last Message: %s" % (date_to_string(bug['last_message'])))
+        pro("          Last Updated: %s" % (date_to_string(bug['last_updated'])))
+        pro("             Duplicate: %s" % bug['duplicate_of'])
         pro('')
 
         global rbg
         global row_fg
-        history = bug.activity
+        history = bug['history']
         prev_timestamp = None
         lineno = 0
         regression_testing_start = None
         automated_testing_start  = None
         signing_start = None
         for activity in history:
-            if activity.whatchanged.endswith('status'):
+            if activity['what-changed'].endswith('status'):
                 lineno += 1
                 rbg = set_row_background()
 
-                task = activity.whatchanged.split(':', 1)[0]
+                task = activity['what-changed'].split(':', 1)[0]
                 if '/' in task:
                     task = task.split('/')[1]
                 if args.highlight is not None and task in args.highlight:
@@ -121,9 +121,9 @@ class LPBugHistory():
                 else:
                     row_fg = white
 
-                timestamp = str(activity.datechanged).split('.', 1)[0]
-                prev_status = activity.oldvalue
-                new_status  = activity.newvalue
+                timestamp = str(activity['date-changed']).split('.', 1)[0]
+                prev_status = activity['old-value']
+                new_status  = activity['new-value']
                 ln = lino(f'{lineno:>3}')
                 o  = row_fg(ln, rbg)
                 o += row_fg(f'  {timestamp}', rbg)
@@ -290,8 +290,11 @@ class LPBugHistory():
                 # id does not exist or if it is not visibile to you with the LP
                 # credentials you are using, an exception will be thrown.
                 #
-                ktb = KTB(id)
-                self.__print_bug_info(ktb)
+                file_path = f'{self.bugs_cache}/{id}'
+                with open(file_path, 'r') as fd:
+                    contents = fd.read()
+                    bug = yaml.safe_load(contents)
+                self.__print_bug_info(bug)
 
         # Handle the user presses <ctrl-C>.
         #
@@ -305,8 +308,9 @@ if __name__ == '__main__':
     # Command line argument setup and initial processing
     #
     app_description = '''
-The kernel tracking bug is specified on the command line. The bug's history is pulled from LP and listed along with annotations
-about the beginning and end of different stages in the process and how long that state took to finish.
+The kernel tracking bug is specified on the command line. The bug's history is pulled from a cache of launchpad bugs
+and listed along with annotations about the beginning and end of different stages in the process and how long that
+state took to finish.
     '''
     app_epilog = '''
 examples:
