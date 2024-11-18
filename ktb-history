@@ -107,6 +107,7 @@ class LPBugHistory():
         lineno = 0
         regression_testing_start = None
         automated_testing_start  = None
+        signing_start = None
         for activity in history:
             if activity.whatchanged.endswith('status'):
                 lineno += 1
@@ -221,7 +222,10 @@ class LPBugHistory():
                         o += anno_r(clr_default, ' ')
 
                     case 'automated-testing:Fix Released':
-                        duration = '(' + self.duration(automated_testing_start, timestamp) + ')'
+                        if automated_testing_start is None:
+                            duration = 0
+                        else:
+                            duration = '(' + self.duration(automated_testing_start, timestamp) + ')'
                         o += anno_r(clr_testing, 'automated testing finished  ')
                         o += anno_d(duration)
                         o += anno_r(clr_default, ' ')
@@ -257,7 +261,10 @@ class LPBugHistory():
                         o += anno_r(clr_default, ' ')
 
                     case 'signing-signoff:Fix Released':
-                        duration = '(' + self.duration(signing_start, timestamp) + ')'
+                        if signing_start is None:
+                            duration = 0
+                        else:
+                            duration = '(' + self.duration(signing_start, timestamp) + ')'
                         o += anno_r(clr_signing, 'signing finished  ')
                         o += anno_d(duration)
                         o += anno_r(clr_default, ' ')
