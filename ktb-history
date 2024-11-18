@@ -199,7 +199,7 @@ class LPBugHistory():
                         o += anno_d(duration)
                         o += anno_r(clr_default, ' ')
 
-                    case 'certification-testing:Opinion':
+                    case 'certification-testing:Opinion' | 'certification-testing:Confirmed' | 'certification-testing:In Progress':
                         certification_testing_start = timestamp
                         o += anno_r(clr_testing, 'certification testing started  ')
                         o += anno_d(' ')
