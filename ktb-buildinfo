@@ -56,19 +56,13 @@ class SrcPackage():
 
             key = p.source_package_name + ':' + p.source_package_version
 
-            self.lp_package_source = p
-            self.key = key
-            self.build_info = {}
-            self.lp_source_info = sourceinfo
-            self.build_data()
-            break # The latest one is the right one?
-            if False:
-                if sourceinfo['source_package_version'] == source_version:
-                    self.lp_package_source = p
-                    self.key = key
-                    self.build_info = {}
-                    self.lp_source_info = sourceinfo
-                    break
+            if sourceinfo['source_package_version'] == source_version:
+                self.lp_package_source = p
+                self.key = key
+                self.build_info = {}
+                self.lp_source_info = sourceinfo
+                self.build_data()
+                break
 
     def build_data(self):
         builds = self.lp_package_source.getBuilds()
@@ -133,7 +127,7 @@ class BuildInfo():
         pro(" ")
         pro("%s: %s" % (ktb.id, ktb.title))
 
-        pro("Owner: %s" % ("None" if ktb.owner is None else ktb.owner.display_name))
+        pro("Owner: %s" % ("None" if ktb.owner is None else ktb.owner))
         pro(" ")
 
         if ktb.series is None:
@@ -174,11 +168,13 @@ class BuildInfo():
         first_create = None
         last_built   = None
         row_odd = True
+        COLOR_BG = self.clr_bg_odd_rows
         for pkg in sorted(self.info):
             if row_odd:
                 COLOR_BG = self.clr_bg_odd_rows
                 row_odd = False
-            o = style(f'    {pkg:48}', self.clr_default + COLOR_BG)
+            o  = style('    ', self.clr_default + self.clr_bg_odd_rows)
+            o += style(f'{pkg:48}', self.clr_default + COLOR_BG)
             for arch in self.info[pkg]:
                 rec = self.info[pkg][arch]
                 o += style(f'{arch:11}', self.clr_default + COLOR_BG)
@@ -213,7 +209,8 @@ class BuildInfo():
                     row_odd = True
 
                 o = '    '
-                o += style(f'{" ":48}', self.clr_default + COLOR_BG)
+                o += style(f'{" ":48}', self.clr_default + self.clr_bg_odd_rows)
+            pro()
 
         if first_create is not None and last_built is not None:
             pro('')

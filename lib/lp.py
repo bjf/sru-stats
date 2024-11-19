@@ -105,14 +105,11 @@ class KTB(LPBug): # Kernel Tracking Bug
     @property
     def packages_and_versions(self):
         pv = {}
-        if False:
-            for pkg in self.swm_properties['packages']:
-                try:
-                    pv[self.swm_properties['packages'][pkg]] = self.swm_properties['versions'][pkg]
-                except KeyError:
-                    pass
         for pkg in self.swm_properties['packages']:
-            pv[self.swm_properties['packages'][pkg]] = '0.0'
+            try:
+                pv[self.swm_properties['packages'][pkg]] = self.swm_properties['versions'][pkg]
+            except KeyError:
+                pass
         return pv
 
     @property
