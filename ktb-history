@@ -107,6 +107,8 @@ class LPBugHistory():
         lineno = 0
         regression_testing_start = None
         automated_testing_start  = None
+        promote_to_proposed_start = None
+        promote_to_updates_start = None
         signing_start = None
         for activity in history:
             if activity['what-changed'].endswith('status'):
@@ -173,14 +175,32 @@ class LPBugHistory():
                         o += anno_d(duration)
                         o += anno_r(clr_default, ' ')
 
+                    case 'promote-to-proposed:In Progress':                           # -proposed
+                        if promote_to_proposed_start is not None:
+                            o += anno_r(clr_testing, 'promote to proposed restarted  ')
+                        else:
+                            o += anno_r(clr_testing, 'promote to proposed started  ')
+                        promote_to_proposed_start = timestamp
+                        o += anno_d(' ')
+                        o += anno_r(clr_default, ' ')
+
                     case 'promote-to-proposed:Fix Released':                          # -proposed
-                        duration = '(' + self.duration(crank_start, timestamp) + ')'
+                        duration = '(' + self.duration(promote_to_proposed_start, timestamp) + ')'
                         o += anno_r(clr_proposed, '-proposed promotion finished  ')
                         o += anno_d(duration)
                         o += anno_r(clr_default, ' ')
 
+                    case 'promote-to-updates:In Progress':                           # -proposed
+                        if promote_to_updates_start is not None:
+                            o += anno_r(clr_testing, 'promote to updates restarted  ')
+                        else:
+                            o += anno_r(clr_testing, 'promote to updates started  ')
+                        promote_to_updates_start = timestamp
+                        o += anno_d(' ')
+                        o += anno_r(clr_default, ' ')
+
                     case 'promote-to-updates:Fix Released':                           # -updates
-                        duration = '(' + self.duration(crank_start, timestamp) + ')'
+                        duration = '(' + self.duration(promote_to_updates_start, timestamp) + ')'
                         o += anno_r(clr_updates, '-updates promotion finished  ')
                         o += anno_d(duration)
                         o += anno_r(clr_default, ' ')
