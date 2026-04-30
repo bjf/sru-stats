@@ -294,3 +294,219 @@ def _from_cache(cls, bug_id):
 
 
 Breakdown.from_cache = classmethod(_from_cache)
+
+
+# ---------------------------------------------------------------------------
+# Live Launchpad path.
+
+_EPOCH = datetime(2009, 3, 2, 0, 0, tzinfo=timezone.utc)
+
+
+def _epoch_to_str(value):
+    """lib.bug stores date_* as seconds-since-epoch ints. Convert to a string
+    matching the on-disk schema."""
+    if not value:
+        return None
+    if isinstance(value, str):
+        return value
+    return str(_EPOCH + timedelta(seconds=int(value)))
+
+
+def _ts_to_str(value):
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return str(_EPOCH + timedelta(seconds=int(value)))
+    return str(value)
+
+
+def _activity_to_history(activity_entries):
+    """Convert lpbug.activity entries to the cached YAML 'history' shape."""
+    out = []
+    for a in activity_entries:
+        out.append({
+            "date-changed": str(a.datechanged),
+            "what-changed": a.whatchanged,
+            "old-value": a.oldvalue,
+            "new-value": a.newvalue,
+            "message": getattr(a, "message", None),
+            "who": a.person.display_name if getattr(a, "person", None) else None,
+        })
+    return out
+
+
+def _tasks_to_dict(tasks):
+    out = {}
+    for name, t in (tasks or {}).items():
+        out[name] = {
+            "id": getattr(t, "id", None),
+            "name": getattr(t, "name", name),
+            "assignee": getattr(t, "assignee", "") or "",
+            "status": getattr(t, "status", "") or "",
+            "importance": getattr(t, "importance", "") or "",
+            "owner": getattr(t, "owner", "") or "",
+            "owner_display_name": getattr(t, "owner_display_name", "") or "",
+            "title": getattr(t, "title", "") or "",
+            "milestone": getattr(t, "milestone", "") or "",
+            "is_complete": getattr(t, "is_complete", False),
+            "date_created":       _epoch_to_str(getattr(t, "date_created", 0)),
+            "date_confirmed":     _epoch_to_str(getattr(t, "date_confirmed", 0)),
+            "date_assigned":      _epoch_to_str(getattr(t, "date_assigned", 0)),
+            "date_triaged":       _epoch_to_str(getattr(t, "date_triaged", 0)),
+            "date_in_progress":   _epoch_to_str(getattr(t, "date_in_progress", 0)),
+            "date_closed":        _epoch_to_str(getattr(t, "date_closed", 0)),
+            "date_fix_committed": _epoch_to_str(getattr(t, "date_fix_committed", 0)),
+            "date_fix_released":  _epoch_to_str(getattr(t, "date_fix_released", 0)),
+            "date_incomplete":    _epoch_to_str(getattr(t, "date_incomplete", 0)),
+            "date_left_closed":   _epoch_to_str(getattr(t, "date_left_closed", 0)),
+            "date_left_new":      _epoch_to_str(getattr(t, "date_left_new", 0)),
+        }
+    return out
+
+
+def _bug_to_dict(bug):
+    """Convert a lib.bug.Bug populated via load_from_lp into the on-disk YAML schema."""
+    return {
+        "id": int(bug.id),
+        "title": bug.title or "",
+        "owner": bug.owner or "",
+        "cycle": bug.cycle or "",
+        "series": bug.series,
+        "package": bug.package,
+        "version": bug.version,
+        "variant": bug.variant or "",
+        "master_bug_id": bug.master_bug_id or None,
+        "created": _ts_to_str(bug.created),
+        "last_message": _ts_to_str(bug.last_message),
+        "last_updated": _ts_to_str(bug.last_updated),
+        "duplicate_of": bug.duplicate or None,
+        "description": bug.description or "",
+        "history": _activity_to_history(bug.lpbug.activity) if hasattr(bug, "lpbug") else [],
+        "tasks": _tasks_to_dict(bug.tasks),
+    }
+
+
+class BuildInfoUnavailable(Exception):
+    """Raised when build info cannot be fetched. Wraps every underlying
+    failure (missing ktl, inaccessible PPA, no series/package, network)
+    so callers have a single exception type to handle."""
+
+
+def _from_launchpad(cls, bug_id, with_build_info=True, lp=None):
+    """Fetch a bug from Launchpad, build a Breakdown.
+
+    Build-info fetch is attempted only when `with_build_info=True`. If the
+    `ktl` module is unavailable, the build PPA is inaccessible, or any
+    per-PPA fetch raises, `bd.warnings` records the reason and
+    `bd.build_info` is left None.
+    """
+    from lib.bug import Bug
+    bug = Bug().load_from_lp(int(bug_id), lp=lp)
+    data = _bug_to_dict(bug)
+    bd = cls.from_cache_data(data)
+    bd.source = "launchpad"
+    bd.fetched_at = _now()
+    if with_build_info:
+        try:
+            bd.build_info = fetch_build_info(bd)
+        except BuildInfoUnavailable as e:
+            bd.warnings.append(f"build_info: {e}")
+    return bd
+
+
+Breakdown.from_launchpad = classmethod(_from_launchpad)
+
+
+def fetch_build_info(bd):
+    """Fetch per-component build info from Launchpad. Requires the `ktl` module.
+
+    Raises BuildInfoUnavailable when ktl is missing, no accessible build PPA
+    is configured, or the bug has no series/package yet.
+    """
+    if not bd.series or not bd.package:
+        raise BuildInfoUnavailable("bug has no series/package yet")
+    try:
+        # lib.lp imports ktl.kernel_series at the top of the file. If ktl is
+        # not installed, the import fails and we report it as unavailable.
+        from lib.lp import KTB, LP
+    except ImportError:
+        raise BuildInfoUnavailable("ktl module not installed")
+    except Exception as e:
+        raise BuildInfoUnavailable(f"lib.lp import failed: {e}")
+
+    try:
+        ktb = KTB(int(bd.id))
+        pv = ktb.packages_and_versions
+        info = {}
+        launchpad = LP().launchpad
+        skipped_ppas = []
+        for pkg_name, version in pv.items():
+            for ppa in ktb.build_ppas:
+                team_name, ppa_name = ppa
+                # esm PPAs are private to engineers; the Launchpad client used
+                # here can't see them. Skip and try the next PPA in the routing
+                # list — esm only blocks build info if every PPA is esm.
+                if "esm" in team_name:
+                    skipped_ppas.append(team_name)
+                    continue
+                team = launchpad.people[team_name]
+                ppa_obj = team.getPPAByName(name=ppa_name)
+                ubuntu = launchpad.distributions("ubuntu")
+                lp_series = ubuntu.getSeries(name_or_version=ktb.series)
+                psrc = ppa_obj.getPublishedSources(
+                    distro_series=lp_series, source_name=pkg_name,
+                    exact_match=True, order_by_date=True,
+                )
+                matched = None
+                for p in psrc:
+                    if p.source_package_version == version:
+                        matched = p
+                        break
+                if matched is None:
+                    continue
+                builds = matched.getBuilds()
+                pkg_record = info.setdefault(pkg_name, {})
+                for build in builds:
+                    duration = build.datebuilt - build.datecreated if (build.datebuilt and build.datecreated) else None
+                    pkg_record[build.arch_tag] = {
+                        "arch": build.arch_tag,
+                        "created": str(build.datecreated) if build.datecreated else None,
+                        "dispatched": str(build.date_first_dispatched) if build.date_first_dispatched else None,
+                        "built": str(build.datebuilt) if build.datebuilt else None,
+                        "duration": str(duration).split(".", 1)[0] if duration else None,
+                    }
+                break  # first matching, accessible PPA wins
+        if not info:
+            if skipped_ppas:
+                raise BuildInfoUnavailable(
+                    f"all build PPAs were inaccessible: {', '.join(skipped_ppas)}"
+                )
+            raise BuildInfoUnavailable("no published sources matched")
+        return {
+            "build_info_fetched_at": str(_now()),
+            "packages": info,
+        }
+    except BuildInfoUnavailable:
+        raise
+    except Exception as e:
+        raise BuildInfoUnavailable(str(e))
+
+
+def to_cache_dict(bd):
+    """Serialize a Breakdown back to the on-disk YAML schema.
+
+    Preserves every key from the original on-disk dict (`bd._raw`) so that
+    keys the renderer doesn't surface — description, last_message,
+    duplicate_of, heat, *_duration — survive a round trip. The two
+    ktb-breakdown-managed keys (build_info, ktb_breakdown_fetched_at) are
+    overwritten with the live values from the Breakdown.
+    """
+    out = dict(bd._raw) if bd._raw else {}
+    out["id"] = int(bd.id)
+    if bd.title:
+        out.setdefault("title", bd.title)
+    if bd.fetched_at is not None:
+        out["ktb_breakdown_fetched_at"] = str(bd.fetched_at)
+    if bd.build_info is not None:
+        out["build_info"] = bd.build_info
+    return out
