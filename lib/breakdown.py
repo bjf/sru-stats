@@ -284,3 +284,13 @@ def _from_cache_data(cls, data):
 
 
 Breakdown.from_cache_data = classmethod(_from_cache_data)
+
+
+from . import cache as _cache_module
+
+
+def _from_cache(cls, bug_id):
+    return cls.from_cache_data(_cache_module.load(bug_id))
+
+
+Breakdown.from_cache = classmethod(_from_cache)

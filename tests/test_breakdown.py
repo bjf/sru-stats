@@ -101,3 +101,13 @@ def test_completed_bug_current_state_is_complete(fixtures_dir):
 
 def test_stages_constant_has_thirteen_entries():
     assert len(STAGES) == 13
+
+
+def test_from_cache_round_trip(cache_dir, fixtures_dir):
+    """Copy a fixture into the cache_dir and load via Breakdown.from_cache()."""
+    src = (fixtures_dir / "cached_bug_completed.yaml").read_text()
+    (cache_dir / "1000001").write_text(src)
+    bd = Breakdown.from_cache(1000001)
+    assert bd.id == 1000001
+    assert bd.current_state == "complete"
+    assert len(bd.stages) == 13
