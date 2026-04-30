@@ -303,7 +303,7 @@ Single bug-id only in this cut. Multi-bug (`nargs='+'`) is a future addition.
 | Bug id not numeric | argparse error, exit 2 |
 | Bug not in cache, no Launchpad creds | Message + path to `~/.config/bugz`, exit 3 |
 | Launchpad fetch fails (404 / auth / network) | Message with bug id + reason, exit 4 |
-| Build PPA inaccessible (`LaunchpadTeamNameError`, e.g. esm) | Warn to stderr, render the rest, exit 0. In text output, the build section is replaced with a one-line "(build info unavailable: <ppa>)" notice. In JSON output, `build_info` is omitted and a `meta.warnings: ["build_info: <reason>"]` array is added. |
+| Build info unavailable — build PPA inaccessible (`LaunchpadTeamNameError`, e.g. esm) **or** `ktl` (kernel-team-tools) Python module not installed | Warn to stderr, render the rest, exit 0. In text output, the build section is replaced with a one-line "(build info unavailable: <reason>)" notice. In JSON output, `build_info` is omitted and a `meta.warnings: ["build_info: <reason>"]` array is added. |
 | YAML cache file corrupt | Path + parse error, exit 5; do not silently refetch |
 | `--format json` and any error after partial fetch | Emit `{"error": ...}` only when partial data exists; otherwise plain stderr + non-zero exit |
 
