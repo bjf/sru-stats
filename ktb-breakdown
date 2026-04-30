@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+"""Print a structured breakdown of one kernel's SRU journey from a bug-id.
+
+Reads from the YAML cache when present; falls back to live Launchpad
+fetch otherwise. Live fetches are written through to the cache. Build
+info is fetched lazily on first use; --no-build-info skips both the
+section and the fetch. --refresh forces a full re-fetch.
+"""
+import sys
+from argparse import ArgumentParser, RawDescriptionHelpFormatter
+
+from lib import cache
+from lib.breakdown import (
+    Breakdown,
+    BuildInfoUnavailable,
+    fetch_build_info,
+    to_cache_dict,
+)
+from lib.render import render_text, render_json, ALL_SECTIONS
+
+
+EXIT_USAGE = 2
+EXIT_NOT_AVAILABLE = 3
+EXIT_LP_FAIL = 4
+EXIT_CACHE_CORRUPT = 5
+
+
+def _parse_sections(value):
+    if not value:
+        return list(ALL_SECTIONS)
+    parts = [p.strip() for p in value.split(",") if p.strip()]
+    for p in parts:
+        if p not in ALL_SECTIONS:
+            raise SystemExit(f"unknown section: {p!r} (valid: {','.join(ALL_SECTIONS)})")
+    return parts
+
+
+def main():
+    p = ArgumentParser(
+        description="Print a structured breakdown of one kernel's SRU journey.",
+        epilog="example:\n    ./ktb-breakdown 2148901",
+        formatter_class=RawDescriptionHelpFormatter,
+    )
+    p.add_argument("bug_id", type=int, help="Launchpad bug id of the kernel tracking bug")
+    p.add_argument("--refresh", action="store_true",
+                   help="force LP fetch of both timeline and build info")
+    p.add_argument("--no-build-info", action="store_true",
+                   help="drop the build section and skip its fetch")
+    p.add_argument("--sections", default=None,
+                   help="csv of sections to render: " + ",".join(ALL_SECTIONS))
+    p.add_argument("--format", default="text", choices=("text", "json"))
+    p.add_argument("--no-color", action="store_true", help="disable ANSI colors")
+    args = p.parse_args()
+
+    sections = _parse_sections(args.sections)
+    if args.no_build_info and "build" in sections:
+        sections = [s for s in sections if s != "build"]
+
+    try:
+        bd = _load(args.bug_id, refresh=args.refresh, with_build_info=not args.no_build_info)
+    except cache.CacheConfigError as e:
+        sys.stderr.write(f"config error: {e}\n")
+        return EXIT_USAGE
+    except cache.CacheDirMissingError as e:
+        sys.stderr.write(f"{e}\n")
+        return EXIT_USAGE
+    except FileNotFoundError as e:
+        sys.stderr.write(f"{e}\n")
+        return EXIT_NOT_AVAILABLE
+    except Exception as e:
+        sys.stderr.write(f"failed to load bug {args.bug_id}: {e}\n")
+        return EXIT_LP_FAIL
+
+    if bd.warnings:
+        for w in bd.warnings:
+            sys.stderr.write(f"[warn] {w}\n")
+
+    if args.format == "json":
+        sys.stdout.write(render_json(bd, sections=sections) + "\n")
+    else:
+        sys.stdout.write(render_text(bd, sections=sections, color=not args.no_color))
+    return 0
+
+
+def _load(bug_id, refresh, with_build_info):
+    """Load a Breakdown using the spec's decision tree."""
+    if cache.exists(bug_id) and not refresh:
+        bd = Breakdown.from_cache(bug_id)
+        # If build info is needed but missing in cache, fetch and merge.
+        if with_build_info and not bd.build_info:
+            try:
+                bi = fetch_build_info(bd)
+                if bi:
+                    bd.build_info = bi
+                    cache.save(bd.id, to_cache_dict(bd))
+            except BuildInfoUnavailable as e:
+                bd.warnings.append(f"build_info: {e}")
+        return bd
+    # Not cached, or --refresh: live fetch.
+    bd = Breakdown.from_launchpad(bug_id, with_build_info=with_build_info)
+    cache.save(bd.id, to_cache_dict(bd))
+    return bd
+
+
+if __name__ == "__main__":
+    sys.exit(main())
