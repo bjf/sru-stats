@@ -364,8 +364,13 @@ def _tasks_to_dict(tasks):
     return out
 
 
-def _bug_to_dict(bug):
-    """Convert a lib.bug.Bug populated via load_from_lp into the on-disk YAML schema."""
+def _bug_to_dict(bug, lpbug=None):
+    """Convert a lib.bug.Bug populated via load_from_lp into the on-disk YAML schema.
+
+    `lpbug` is the underlying launchpadlib bug object — used to extract the
+    activity list into `history`. lib.bug.Bug doesn't stash this on the
+    instance, so callers must pass it explicitly.
+    """
     return {
         "id": int(bug.id),
         "title": bug.title or "",
@@ -381,7 +386,7 @@ def _bug_to_dict(bug):
         "last_updated": _ts_to_str(bug.last_updated),
         "duplicate_of": bug.duplicate or None,
         "description": bug.description or "",
-        "history": _activity_to_history(bug.lpbug.activity) if hasattr(bug, "lpbug") else [],
+        "history": _activity_to_history(lpbug.activity) if lpbug is not None else [],
         "tasks": _tasks_to_dict(bug.tasks),
     }
 
@@ -401,8 +406,12 @@ def _from_launchpad(cls, bug_id, with_build_info=True, lp=None):
     `bd.build_info` is left None.
     """
     from lib.bug import Bug
+    from lib.launchpad import Launchpad
+    if lp is None:
+        lp = Launchpad("bugz")
+    lpbug = lp.service.bugs[int(bug_id)]
     bug = Bug().load_from_lp(int(bug_id), lp=lp)
-    data = _bug_to_dict(bug)
+    data = _bug_to_dict(bug, lpbug=lpbug)
     bd = cls.from_cache_data(data)
     bd.source = "launchpad"
     bd.fetched_at = _now()
