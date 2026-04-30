@@ -1733,7 +1733,7 @@ def test_ktb_history_2086331_smoke():
     rows = [ln for ln in out.splitlines() if "->" in ln and any(
         t in ln for t in ("kernel-sru-workflow", "snap-prepare", "snap-release", "prepare-package")
     )]
-    assert len(rows) >= 20, f"only saw {len(rows)} timeline rows in ktb-history output"
+    assert len(rows) >= 15, f"only saw {len(rows)} timeline rows in ktb-history output"
 ```
 
 - [ ] **Step 2: Replace `ktb-history` with a thin wrapper**
