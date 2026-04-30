@@ -71,10 +71,25 @@ def test_mtime_returns_float_when_present(cache_dir):
     assert isinstance(cache.mtime(1234), float)
 
 
-def test_missing_neo_config_file_raises(monkeypatch):
+def test_missing_neo_config_file_raises(monkeypatch, tmp_path):
+    """When the env var is unset and the repo's neo.cfg is also absent
+    (simulated by pointing the default at an empty tmp dir), cache_dir()
+    must raise."""
     monkeypatch.delenv("NEO_CONFIG_FILE", raising=False)
+    monkeypatch.setattr(cache, "_DEFAULT_CFG", str(tmp_path / "missing.cfg"))
     with pytest.raises(cache.CacheConfigError):
         cache.cache_dir()
+
+
+def test_default_neo_config_used_when_env_unset(monkeypatch, tmp_path):
+    """When $NEO_CONFIG_FILE is unset, the default _DEFAULT_CFG path is used."""
+    cache_path = tmp_path / "default-cache"
+    cache_path.mkdir()
+    cfg = tmp_path / "default-neo.cfg"
+    cfg.write_text(f"---\ntracking-bugs-cache: {cache_path}\n")
+    monkeypatch.delenv("NEO_CONFIG_FILE", raising=False)
+    monkeypatch.setattr(cache, "_DEFAULT_CFG", str(cfg))
+    assert cache.cache_dir() == str(cache_path)
 
 
 def test_missing_cache_key_raises(tmp_path, monkeypatch):

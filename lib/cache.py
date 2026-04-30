@@ -17,17 +17,23 @@ class CacheDirMissingError(RuntimeError):
     """The configured tracking-bugs-cache directory doesn't exist."""
 
 
+_DEFAULT_CFG = str(Path(__file__).resolve().parent.parent / "neo.cfg")
+
+
 def cache_dir() -> str:
     """Resolve the cache directory from $NEO_CONFIG_FILE every call.
 
-    No module-level memoization — re-resolving is cheap (one tiny YAML read)
-    and lets per-test monkeypatch of $NEO_CONFIG_FILE work transparently.
+    Falls back to <repo>/neo.cfg (the file shipped alongside the tools) when
+    the env var is unset. No module-level memoization — re-resolving is
+    cheap (one tiny YAML read) and lets per-test monkeypatch of
+    $NEO_CONFIG_FILE work transparently.
     """
-    cfg_path = os.environ.get("NEO_CONFIG_FILE")
-    if not cfg_path or not os.path.exists(cfg_path):
+    cfg_path = os.environ.get("NEO_CONFIG_FILE") or _DEFAULT_CFG
+    if not os.path.exists(cfg_path):
         raise CacheConfigError(
-            f"NEO_CONFIG_FILE is not set or does not exist (got: {cfg_path!r}). "
-            f"Set it to a YAML file containing 'tracking-bugs-cache: <path>'."
+            f"neo.cfg not found at {cfg_path!r}. "
+            f"Either create it (with a 'tracking-bugs-cache: <path>' entry) "
+            f"or set $NEO_CONFIG_FILE to point at one."
         )
     with open(cfg_path) as f:
         data = yaml.safe_load(f.read()) or {}
