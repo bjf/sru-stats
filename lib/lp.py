@@ -1,5 +1,5 @@
 from launchpadlib.launchpad             import Launchpad
-from ktl.kernel_series                  import KernelSeries
+from lib.ktl.kernel_series              import KernelSeries
 import yaml
 import os
 
