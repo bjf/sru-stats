@@ -1,0 +1,28 @@
+
+    2086331: jammy/linux-intel-iot-realtime: 5.15.0-1066.68 snap-debs snap:intel-iot-realtime-kernel
+
+                 Owner: mehmetbasaran
+                 Cycle: 2024.10.28
+
+               Created: 2024-11-01 10:29:57
+          Last Message: 2024-11-28 20:55:58
+          Last Updated: 2024-11-29 16:21:48
+             Duplicate: None
+
+  1  2024-11-01 10:34:56    kernel-sru-workflow               New            ->  Confirmed                                                                                                              
+  2  2024-11-01 10:48:40    kernel-sru-workflow               Confirmed      ->  Triaged                     0:13:44                                                                                                    
+  3  2024-11-01 10:51:54    kernel-sru-workflow               Triaged        ->  In Progress                 0:03:14                                                                                                    
+  4  2024-11-25 14:18:32    snap-release-to-candidate         New            ->  Invalid            24 days, 3:26:38                                                                                                    
+  5  2024-11-25 14:18:35    snap-release-to-stable            New            ->  Invalid                     0:00:03                                                                                                    
+  6  2024-11-27 09:38:18    snap-prepare                      New            ->  In Progress         1 day, 19:19:43                                                                                                    
+  7  2024-11-27 10:11:21    snap-prepare                      In Progress    ->  Incomplete                  0:33:03                                                                                                    
+  8  2024-11-28 13:17:41    snap-prepare                      Incomplete     ->  New                  1 day, 3:06:20                                                                                                    
+  9  2024-11-28 13:18:13    snap-prepare                      New            ->  In Progress                 0:00:32                                                                                                    
+ 10  2024-11-28 13:26:10    snap-prepare                      In Progress    ->  New                         0:07:57                                                                                                    
+ 11  2024-11-28 13:26:35    snap-prepare                      New            ->  In Progress                 0:00:25                                                                                                    
+ 12  2024-11-28 13:56:29    snap-prepare                      In Progress    ->  Fix Released                0:29:54                                                                                                    
+ 13  2024-11-28 13:56:33    snap-release-to-edge              New            ->  Fix Released                0:00:04                                                                                                    
+ 14  2024-11-28 19:32:09    snap-prepare-signed               New            ->  In Progress                 5:35:36                                                                                                    
+ 15  2024-11-28 19:51:45    snap-prepare-signed               In Progress    ->  Fix Released                0:19:36                                                                                                    
+ 16  2024-11-28 19:51:46    snap-release-to-beta              New            ->  Fix Released                0:00:01                                                                                                    
+ 17  2024-11-28 20:56:00    kernel-sru-workflow               In Progress    ->  Fix Committed               1:04:14                                                                                                    
