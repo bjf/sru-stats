@@ -1,0 +1,15 @@
+---
+id: 1000005
+title: 'noble/linux-fixture: <version to be filled>'
+owner: testuser
+cycle: '2026.04.13'
+created: '2026-04-29 09:00:00+00:00'
+last_updated: '2026-04-29 09:00:00+00:00'
+duplicate_of: null
+description: ''
+history: []
+tasks:
+    kernel-sru-workflow:
+        status: New
+    prepare-package:
+        date_created: '2026-04-29 09:00:00+00:00'

@@ -1,0 +1,22 @@
+---
+id: 1000004
+title: 'jammy/linux-snap: 5.15.0-200.200 snap-debs'
+owner: testuser
+cycle: '2026.04.13'
+created: '2026-04-15 09:00:00+00:00'
+last_updated: '2026-04-15 14:00:00+00:00'
+duplicate_of: null
+description: ''
+history: []
+tasks:
+    kernel-sru-workflow:
+        status: Fix Committed
+    prepare-package:
+        date_created: '2026-04-15 09:00:00+00:00'
+        date_confirmed: '2026-04-15 09:30:00+00:00'
+        date_in_progress: '2026-04-15 10:00:00+00:00'
+        date_fix_committed: '2026-04-15 11:00:00+00:00'
+    promote-to-proposed:
+        date_confirmed: '2026-04-15 12:00:00+00:00'
+        date_in_progress: '2026-04-15 13:00:00+00:00'
+        date_fix_released: '2026-04-15 14:00:00+00:00'

@@ -1,0 +1,32 @@
+---
+id: 1000001
+title: 'noble/linux-fixture: 6.8.0-100.100'
+owner: testuser
+cycle: '2026.04.13'
+created: '2026-04-15 09:00:00+00:00'
+last_updated: '2026-04-25 12:00:00+00:00'
+duplicate_of: null
+description: ''
+history: []
+tasks:
+    kernel-sru-workflow:
+        status: Fix Released
+        date_created: '2026-04-15 09:00:00+00:00'
+    prepare-package:
+        date_created: '2026-04-15 09:00:00+00:00'
+        date_confirmed: '2026-04-15 09:30:00+00:00'
+        date_in_progress: '2026-04-15 10:00:00+00:00'
+        date_fix_committed: '2026-04-15 11:00:00+00:00'
+    promote-to-proposed:
+        date_confirmed: '2026-04-15 12:00:00+00:00'
+        date_in_progress: '2026-04-15 13:00:00+00:00'
+        date_fix_released: '2026-04-16 13:00:00+00:00'
+    regression-testing:
+        date_confirmed: '2026-04-16 14:00:00+00:00'
+        date_fix_released: '2026-04-17 14:00:00+00:00'
+    certification-testing:
+        date_confirmed: '2026-04-16 14:00:00+00:00'
+        date_fix_released: '2026-04-18 14:00:00+00:00'
+    promote-to-updates:
+        date_in_progress: '2026-04-25 09:00:00+00:00'
+        date_fix_released: '2026-04-25 11:00:00+00:00'

@@ -1,0 +1,45 @@
+---
+id: 1000003
+title: 'noble/linux-fixture: 6.8.0-102.102'
+owner: testuser
+cycle: '2026.04.13'
+created: '2026-04-15 09:00:00+00:00'
+last_updated: '2026-04-17 12:00:00+00:00'
+duplicate_of: null
+description: ''
+history:
+-   date-changed: 2026-04-15 09:00:00+00:00
+    what-changed: 'regression-testing: status'
+    old-value: New
+    new-value: Triaged
+-   date-changed: 2026-04-15 11:00:00+00:00
+    what-changed: 'regression-testing: status'
+    old-value: Triaged
+    new-value: Incomplete
+-   date-changed: 2026-04-15 12:00:00+00:00
+    what-changed: 'regression-testing: status'
+    old-value: Incomplete
+    new-value: Triaged
+-   date-changed: 2026-04-16 09:00:00+00:00
+    what-changed: 'regression-testing: status'
+    old-value: Triaged
+    new-value: Fix Released
+-   date-changed: 2026-04-15 09:00:00+00:00
+    what-changed: 'boot-testing: status'
+    old-value: New
+    new-value: Triaged
+-   date-changed: 2026-04-15 10:00:00+00:00
+    what-changed: 'boot-testing: status'
+    old-value: Triaged
+    new-value: Fix Released
+tasks:
+    kernel-sru-workflow:
+        status: In Progress
+    prepare-package:
+        date_created: '2026-04-15 08:00:00+00:00'
+        date_confirmed: '2026-04-15 08:15:00+00:00'
+        date_in_progress: '2026-04-15 08:30:00+00:00'
+        date_fix_committed: '2026-04-15 08:45:00+00:00'
+    regression-testing:
+        date_confirmed: '2026-04-15 09:00:00+00:00'
+        date_fix_released: '2026-04-16 09:00:00+00:00'
