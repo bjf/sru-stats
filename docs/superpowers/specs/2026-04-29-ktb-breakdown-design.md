@@ -118,6 +118,8 @@ ktb_breakdown_fetched_at: '2026-04-29 20:35:00+00:00'
 
 The schema is purely additive. `ktb-history` (cache-only, timeline-only) continues to work against files with or without these new keys. `build_info_fetched_at` and `ktb_breakdown_fetched_at` are tracked separately because timeline and build data are fetched on different schedules.
 
+In the JSON output (§5.2), `meta.fetched_at` corresponds to `ktb_breakdown_fetched_at` (when the timeline was last refreshed); `build_info.fetched_at` corresponds to `build_info.build_info_fetched_at` on disk.
+
 ### 3.2 Runtime `Breakdown` object
 
 Holds the raw fields plus two computed views built once at construction and discarded between runs:
@@ -165,6 +167,8 @@ STAGES = [
 ```
 
 A stage's start/end is preferentially looked up in `bug.tasks[name].date_*`. When a task transitions through a status without storing a corresponding `date_*` field (boot-testing, automated-testing, sru-review, new-review, signing), the `start_history` / `end_history` form scans `bug.history` for the matching `task:status` event. This mirrors the logic already present in `ktb-history`.
+
+`Stage.__init__` accepts exactly one form per endpoint: either the `(task_name, date_field)` pair via `start=`/`end=`, or the `task:status` string via `start_history=`/`end_history=`. Mixing the two for a single endpoint, or passing neither, is a constructor error caught at module import.
 
 ### 4.2 Stage status rules
 
@@ -299,7 +303,7 @@ Single bug-id only in this cut. Multi-bug (`nargs='+'`) is a future addition.
 | Bug id not numeric | argparse error, exit 2 |
 | Bug not in cache, no Launchpad creds | Message + path to `~/.config/bugz`, exit 3 |
 | Launchpad fetch fails (404 / auth / network) | Message with bug id + reason, exit 4 |
-| Build PPA inaccessible (`LaunchpadTeamNameError`, e.g. esm) | Warn to stderr, render the rest, exit 0 |
+| Build PPA inaccessible (`LaunchpadTeamNameError`, e.g. esm) | Warn to stderr, render the rest, exit 0. In text output, the build section is replaced with a one-line "(build info unavailable: <ppa>)" notice. In JSON output, `build_info` is omitted and a `meta.warnings: ["build_info: <reason>"]` array is added. |
 | YAML cache file corrupt | Path + parse error, exit 5; do not silently refetch |
 | `--format json` and any error after partial fetch | Emit `{"error": ...}` only when partial data exists; otherwise plain stderr + non-zero exit |
 
@@ -324,7 +328,7 @@ All tests under a new `tests/` directory, using `pytest`.
 
 ### 7.2 Integration tests (real cache dir, no network)
 
-- `tests/test_ktb_history_compat.py` — run `ktb-history 2086331` before and after the refactor; rendered output must be byte-identical (modulo ANSI normalization). Regression net for the existing tool.
+- `tests/test_ktb_history_compat.py` — run `ktb-history 2086331` before and after the refactor; rendered output must be byte-identical (modulo ANSI normalization). Regression net for the existing tool. The pre-refactor output is captured to `tests/fixtures/ktb_history_2086331.txt` as the *first* implementation step, before any code is moved out of `ktb-history`.
 - `tests/test_ktb_breakdown_cached.py` — run `ktb-breakdown 2086331` against the existing cache; assert all five sections appear and JSON validates against a tiny inline schema.
 
 ### 7.3 Live test (manual, network required)
@@ -333,7 +337,7 @@ All tests under a new `tests/` directory, using `pytest`.
 
 1. Cache file `<cache>/2148901` is created on first run.
 2. Result contains a `build_info` section with at least one package.
-3. Second invocation without `--refresh` is fast (< 500ms vs. multi-second live fetch) and produces identical output.
+3. Second invocation without `--refresh` makes no Launchpad API call (verified by patching the LP client and asserting it is not invoked) and produces identical output to the first invocation. (Wall-clock timing is intentionally not asserted — too disk/CI dependent.)
 4. `--refresh` updates `ktb_breakdown_fetched_at` and `build_info.build_info_fetched_at`.
 5. `--no-build-info` on a fresh cache produces a report with no build section and no build fetch is attempted (verified by mocking out the build fetcher and asserting it is not called).
 
