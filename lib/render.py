@@ -280,7 +280,11 @@ def render_text(bd: Breakdown, sections: Sequence[str] = ALL_SECTIONS, color: bo
         chunks.append(_TEXT_RENDERERS[sec](bd, color))
     if bd.warnings:
         chunks.append("\n".join(f"[warn] {w}" for w in bd.warnings))
-    return "\n\n".join(chunks) + "\n"
+    raw = "\n\n".join(chunks) + "\n"
+    # Trim trailing whitespace per line. Section renderers use fixed-width
+    # format specs that pad with spaces, leaving runs of trailing space when
+    # the final field is empty. One sweep here keeps every renderer clean.
+    return "\n".join(line.rstrip() for line in raw.split("\n"))
 
 
 def render_json(bd: Breakdown, sections: Sequence[str] = ALL_SECTIONS) -> str:

@@ -103,6 +103,19 @@ def test_text_timeline_renders_history_rows_and_annotations(fixtures_dir):
     assert "boot-testing finished" in out
 
 
+def test_text_has_no_trailing_whitespace(fixtures_dir):
+    """Every line of text output must be free of trailing whitespace.
+
+    Section renderers use fixed-width format specs that left-pad fields;
+    when the final field is empty (e.g. an annotation-less timeline row)
+    the line ended with runs of spaces. render_text() now strips per line.
+    """
+    bd = _bd(fixtures_dir, "cached_bug_restart.yaml")
+    out = render_text(bd, sections=ALL_SECTIONS, color=False)
+    for i, line in enumerate(out.split("\n")):
+        assert line == line.rstrip(), f"line {i} has trailing whitespace: {line!r}"
+
+
 def test_json_timeline_emits_iso_timestamps_and_integer_deltas(fixtures_dir):
     bd = _bd(fixtures_dir, "cached_bug_restart.yaml")
     obj = json.loads(render_json(bd, sections=["timeline"]))
