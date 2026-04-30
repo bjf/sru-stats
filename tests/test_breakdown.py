@@ -111,3 +111,24 @@ def test_from_cache_round_trip(cache_dir, fixtures_dir):
     assert bd.id == 1000001
     assert bd.current_state == "complete"
     assert len(bd.stages) == 13
+
+
+def test_to_cache_dict_preserves_all_raw_keys(fixtures_dir):
+    """to_cache_dict must round-trip every key from the original on-disk dict.
+
+    The renderer doesn't surface description/last_message/duplicate_of/heat
+    or the precomputed *_duration fields, but they must survive a save/load
+    cycle so other consumers (db-update, future tools) keep working.
+    """
+    import yaml as _yaml
+    from lib.breakdown import to_cache_dict
+    raw = _yaml.safe_load((fixtures_dir / "cached_bug_completed.yaml").read_text())
+    raw["description"] = "this should survive"
+    raw["heat"] = 42
+    raw["last_message"] = "2026-04-30 09:00:00+00:00"
+    raw["build_duration"] = 1234
+
+    bd = Breakdown.from_cache_data(raw)
+    out = to_cache_dict(bd)
+    for k in ("description", "heat", "last_message", "build_duration"):
+        assert out[k] == raw[k], f"to_cache_dict dropped {k!r}"
